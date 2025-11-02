@@ -38,14 +38,14 @@ colors.enable();
 
 // Serve static assets
 app.use("/assets", express.static(path.join(__dirname, "assets")));
-app.use(cors());
+// app.use(cors());
 
 // Only Allowed URLs
-// app.use(cors({
-//   origin: allowedOrigins,
-//   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-//   credentials: true,
-// }));
+app.use(cors({
+  origin: allowedOrigins,
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+}));
 // ✅ Raw body parser for Stripe webhook
 app.post(
   "/api/order/webhook/stripe",
