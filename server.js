@@ -13,7 +13,7 @@ import connectedRoutes from "./routes/ConnectedRoutes.js";
 import { mainServerRunnig } from "./controllers/testController.js";
 import { stripeWebhook } from "./controllers/stripe/stripeController.js";
 import expressSession from "express-session";
-import passport from "passport"; // assuming you're using ES Modules
+// import passport from "passport"; // assuming you're using ES Modules
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -32,8 +32,8 @@ app.use(
   })
 );
 
-app.use(passport.initialize());
-app.use(passport.session());
+// app.use(passport.initialize());
+// app.use(passport.session());
 colors.enable();
 
 // Serve static assets
