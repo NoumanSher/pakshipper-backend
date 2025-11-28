@@ -1,5 +1,5 @@
 import passport from "passport";
-import { Strategy as LinkedInStrategy } from "passport-linkedin-oauth2";
+import { Strategy as LinkedInStrategy } from "passport-linkedin-oauth2"; 
 import bcrypt from "bcrypt";
 
 import jwt from "jsonwebtoken";
