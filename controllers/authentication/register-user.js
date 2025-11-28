@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import User from "../../models/user-schema.js";
+import jwt from "jsonwebtoken";
 
 /**
  * @route   POST /api/auth/register-user
@@ -11,7 +12,8 @@ import User from "../../models/user-schema.js";
  */
 export const registerUser = async (req, res) => {
   try {
-    const { email, username, mobilePhone, password, confirmPassword } = req.body;
+    const { email, username, mobilePhone, password, confirmPassword } =
+      req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -37,13 +39,18 @@ export const registerUser = async (req, res) => {
       password: hashedPassword,
       confirmPassword: hashedPassword, // Note: This could be removed to avoid redundant storage
     });
-
+    // Generate token
+    const token = jwt.sign(
+      { id: newUser._id, email: newUser.email, role: newUser.role },
+      process.env.SECRET_KEY,
+      { expiresIn: "1h" }
+    );
     // Save the user
     await newUser.save();
 
     res
       .status(201)
-      .json({ message: "User registered successfully", data: newUser });
+      .json({ message: "User registered successfully", data: newUser, token });
   } catch (error) {
     res.status(500).json({ message: "Error creating user", error });
   }
