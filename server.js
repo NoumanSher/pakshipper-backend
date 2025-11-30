@@ -43,7 +43,11 @@ app.use("/assets", express.static(path.join(__dirname, "assets")));
 
 // Only Allowed URLs
 app.use(cors({
-  origin: allowedOrigins,
+    origin: [
+    'https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app',
+    'https://www.pakshipper.com',
+    'http://localhost:3000' // for local development
+  ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true,
 }));
