@@ -8,7 +8,7 @@ import dotenv from "dotenv";
 import morgan from "morgan";
 import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
-import client from "./config/redis/redisClient.js";
+// import client from "./config/redis/redisClient.js";
 import connectedRoutes from "./routes/ConnectedRoutes.js";
 import { mainServerRunnig } from "./controllers/testController.js";
 import { stripeWebhook } from "./controllers/stripe/stripeController.js";
