@@ -20,6 +20,7 @@ const __dirname = path.dirname(__filename);
 const app = express();
 dotenv.config(); // Load environment variables
 const allowedOrigins = process.env.CORS_ORIGINS?.split(",") || [];
+
 app.use(
   expressSession({
     secret: process.env.SESSION_SECRET || "keyboard cat", // use a strong secret in production
