@@ -6,9 +6,12 @@ import { updateUser } from "../controllers/authentication/update-user.js";
 import { resetPassword } from "../controllers/authentication/reset-password.js";
 import { forgetPassword } from "../controllers/authentication/forget-password.js";
 import { getAllUsers } from "../controllers/authentication/get-all-user.js";
+import { getMe } from "../controllers/authentication/get-me.js";
 import authMiddleware from "../middlewares/authMiddleWare.js";
 import roleMiddleware from "../middlewares/roleMiddleWare.js";
-// import passport from "../OAuth/Google/googleStrategy.js";
+import passport from "../OAuth/Google/googleStrategy.js";
+// Ensure LinkedIn strategy is registered (side-effect import)
+import "../OAuth/LinkedIn/LinkdinStaregy.js";
 // import passportL from "../OAuth/LinkedIn/LinkdinStaregy.js";
 
 const router = express.Router();
@@ -62,63 +65,56 @@ router.post("/forget-password", authMiddleware, forgetPassword);
  */
 router.get("/all", authMiddleware, roleMiddleware("admin"), getAllUsers);
 
-// router.get(
-//   "/google",
-//   passport.authenticate("google", { scope: ["profile", "email"] })
-// );
+// Get current authenticated user via token (JWT)
+router.get("/me", authMiddleware, getMe);
 
-// router.get(
-//   "/linkedin",
-//   passportL.authenticate("linkedin", {
-//     scope: ["r_liteprofile", "r_emailaddress"],
-//   }),
-// );
+router.get(
+  "/google",
+  passport.authenticate("google", { scope: ["profile", "email"] })
+);
 
-// router.get(
-//   "/google/callback",
-//   passport.authenticate("google", {
-//     failureRedirect: "/login",
-//     // session: false,
-//   }),
-//   function (req, res) {
-//     console.log(req.user);
-//     const { user, token } = req.user;
+router.get(
+  "/linkedin",
+  passport.authenticate("linkedin", {
+    scope: ["openid", "profile", "email"],
+  })
+);
 
-//     res.redirect("/");
-//     // res.status(200).json({
-//     //   message: "Google login successful",
-//     //   user: {
-//     //     id: user._id,
-//     //     email: user.email,
-//     //     username: user.username,
-//     //     role: user.role,
-//     //   },
-//     //   token,
-//     // });
-//   }
-// );
-// router.get(
-//   "/linkedin/callback",
-//   passportL.authenticate("linkedin", {
-//     failureRedirect: "/login",
-//     // session: false,
-//   }),
-//   function (req, res) {
-//     console.log(req.user);
-//     const { user, token } = req.user;
+router.get(
+  "/linkedin/callback",
+  passport.authenticate("linkedin", {
+    failureRedirect: "/login",
+    session: false,
+  }),
+  function (req, res) {
+    console.log('[LinkedIn callback] req.user =>', req.user);
+    const { user, token } = req.user || {};
+    if (!token) {
+      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/error`);
+    }
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    return res.redirect(`${frontendUrl}/auth/success#token=${token}`);
+  }
+);
 
-//     res.redirect("/");
-//     // res.status(200).json({
-//     //   message: "Google login successful",
-//     //   user: {
-//     //     id: user._id,
-//     //     email: user.email,
-//     //     username: user.username,
-//     //     role: user.role,
-//     //   },
-//     //   token,
-//     // });
-//   }
-// );
+router.get(
+  "/google/callback",
+  passport.authenticate("google", {
+    failureRedirect: "/login",
+    session: false,
+  }),
+  function (req, res) {
+    console.log("[OAuth callback] req.user =>", req.user);
+    const { user, token } = req.user || {};
+    if (!token) {
+      return res.redirect(
+        `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/error`
+      );
+    }
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+    return res.redirect(`${frontendUrl}/auth/success#token=${token}`);
+  }
+);
+
 
 export default router;

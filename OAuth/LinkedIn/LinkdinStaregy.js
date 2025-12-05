@@ -1,33 +1,49 @@
 import passport from "passport";
-import { Strategy as LinkedInStrategy } from "passport-linkedin-oauth2"; 
+import { Strategy as OpenIDConnectStrategy } from "passport-openidconnect";
 import bcrypt from "bcrypt";
-
 import jwt from "jsonwebtoken";
 import userSchema from "../../models/user-schema.js";
 
 passport.use(
-  new LinkedInStrategy(
+  "linkedin",
+  new OpenIDConnectStrategy(
     {
+      issuer: "https://www.linkedin.com/oauth",
+      authorizationURL: "https://www.linkedin.com/oauth/v2/authorization",
+      tokenURL: "https://www.linkedin.com/oauth/v2/accessToken",
+      userInfoURL: "https://api.linkedin.com/v2/userinfo",
       clientID: process.env.LINKEDIN_API_KEY,
       clientSecret: process.env.LINKEDIN_SECRET_KEY,
-
-      callbackURL: "http://localhost:7418/api/auth/linkedin/callback",
-      scope: ["r_emailaddress", "r_liteprofile"],
-      state: true,
+      callbackURL:
+        process.env.LINKEDIN_CALLBACK_URL ||
+        "http://localhost:7418/api/auth/linkedin/callback",
+      scope: ["openid", "profile", "email"],
     },
-    async (accessToken, refreshToken, profile, done) => {
-      console.log(profile);
+    async (issuer, profile, done) => {
+      console.log("LinkedIn Profile:", profile);
       try {
-        const email = profile.emails[0].value;
+        const email = profile.emails?.[0]?.value || profile.email;
+
+        if (!email) {
+          console.error(
+            "LinkedIn Strategy: no email returned in profile",
+            profile
+          );
+          return done(new Error("No email returned from LinkedIn"), null);
+        }
+
         const linkedinId = profile.id;
-        const username = profile.displayName;
+        const username =
+          profile.displayName ||
+          profile.name?.givenName + " " + profile.name?.familyName ||
+          profile.given_name + " " + profile.family_name;
+
         let user = await userSchema.findOne({ linkedinId });
+
         if (!user) {
-          // If not found by Google ID, check if user exists by email
           user = await userSchema.findOne({ email });
 
           if (user) {
-            // Link existing user to Google account
             user.linkedinId = linkedinId;
             await user.save();
           } else {
@@ -37,32 +53,38 @@ passport.use(
               10
             );
 
-            // Create new user
             user = await userSchema.create({
               email,
               username,
               linkedinId,
-              password: hashedPassword, // Replace with a secure value or auth-only strategy
+              password: hashedPassword,
             });
           }
         }
-        // Generate token
+
         const token = jwt.sign(
           { id: user._id, email: user.email, role: user.role },
           process.env.SECRET_KEY,
           { expiresIn: "1h" }
         );
+
         return done(null, { user, token });
       } catch (error) {
-        console.error("Google Strategy Error:", error);
+        console.error("LinkedIn Strategy Error:", error);
         return done(error, null);
       }
     }
   )
 );
+
 passport.serializeUser((user, done) => {
-  console.log(user.user._id);
-  done(null, user.user._id); // save user ID in session
+  try {
+    const id = user?.user?._id || user?._id;
+    if (id) console.log(id);
+    done(null, id);
+  } catch (err) {
+    done(err, null);
+  }
 });
 
 passport.deserializeUser(async (id, done) => {
@@ -73,4 +95,5 @@ passport.deserializeUser(async (id, done) => {
     done(err, null);
   }
 });
+
 export default passport;

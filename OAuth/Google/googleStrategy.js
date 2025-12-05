@@ -10,7 +10,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: "http://localhost:7418/api/auth/google/callback",
+      callbackURL:  process.env.GOOGLE_CALLBACK_URL || "http://localhost:7418/api/auth/google/callback",
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
@@ -19,7 +19,7 @@ passport.use(
         const username = profile.displayName;
         let user = await userSchema.findOne({ googleId });
         if (!user) {
-          // If not found by Google ID, check if user exists by email
+          // If not found by Google ID, check if user exists by email 
           user = await userSchema.findOne({ email });
 
           if (user) {

@@ -13,13 +13,13 @@ import connectedRoutes from "./routes/ConnectedRoutes.js";
 import { mainServerRunnig } from "./controllers/testController.js";
 import { stripeWebhook } from "./controllers/stripe/stripeController.js";
 import expressSession from "express-session";
-// import passport from "passport"; // assuming you're using ES Modules
+import passport from "passport"; // assuming you're using ES Modules
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 dotenv.config(); // Load environment variables
-const allowedOrigins = process.env.CORS_ORIGINS?.split(",") || [];
+// const allowedOrigins = process.env.CORS_ORIGINS?.split(",") || [];
 
 app.use(
   expressSession({
@@ -33,8 +33,8 @@ app.use(
   })
 );
 
-// app.use(passport.initialize());
-// app.use(passport.session());
+app.use(passport.initialize());
+app.use(passport.session());
 colors.enable();
 
 // Serve static assets
@@ -46,10 +46,12 @@ app.use(cors({
     origin: [
     'https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app',
     'https://www.pakshipper.com',
-    'http://localhost:3000' // for local development
+    'http://localhost:3000', // for local development
+    'https://acbc52568818.ngrok-free.app',
+    'https://36a36a5f2040.ngrok-free.app'
   ],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  credentials: true,
+  // credentials: true,
 }));
 // ✅ Raw body parser for Stripe webhook
 app.post(
