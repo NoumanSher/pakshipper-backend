@@ -7,6 +7,7 @@ import cartRoutes from "./user-cart-routes.js"; // User shopping cart routes
 import orderRoutes from "./post-order-routes.js"; // Order placement and management routes
 import reviewRoutes from "./review-routes.js"; // Product review routes
 import uploadRoutes from "./upload.js"; // Image upload routes
+import adminUploadRoutes from "./admin-upload-routes.js"; // Admin e-commerce image upload routes
 import { mainServerRunnig } from "../controllers/testController.js";
 // phase-2
 /**
@@ -24,7 +25,8 @@ const connectedRoutes = (app) => {
   app.use("/api/cart", cartRoutes);
   app.use("/api/order", orderRoutes);
   app.use("/api/reviews", reviewRoutes);
-  app.use("/api/image", uploadRoutes); // Image uploads
+  app.use("/api/image", uploadRoutes); // Image uploads (client reviews)
+  app.use("/api/admin", adminUploadRoutes); // Admin image uploads (e-commerce store)
 };
 
 export default connectedRoutes;

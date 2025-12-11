@@ -333,7 +333,6 @@ export const getAllProductss = async (req, res) => {
 
 export const getProductsByCategoryPriority = async (req, res) => {
   try {
-    debugger;
     const { parentCategoryID, childCategoryID } = req.query;
     // console.log(parentCategoryID);
     // console.log(childCategoryID);
