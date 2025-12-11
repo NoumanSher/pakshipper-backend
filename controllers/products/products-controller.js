@@ -1,6 +1,7 @@
 import client from "../../config/redis/redisClient.js";
 import Product from "../../models/products.js";
 import mongoose from "mongoose";
+import cloudinaryAdmin from "../../utils/cloudinaryAdmin.js";
 // create Products
 export const createProduct = async (req, res) => {
   try {
@@ -117,11 +118,32 @@ export const deleteProduct = async (req, res) => {
     }
     const product = await Product.findByIdAndDelete(id);
     if (!product) {
-      res.status(404).json({ message: "Product Not Found!" });
+      return res.status(404).json({ message: "Product Not Found!" });
     }
+
+    // Delete associated images from Cloudinary
+    if (product.images && product.images.length > 0) {
+      const publicIds = product.images
+        .filter((img) => img.publicId)
+        .map((img) => img.publicId);
+
+      if (publicIds.length > 0) {
+        try {
+          await cloudinaryAdmin.api.delete_resources(publicIds);
+          console.log(`✅ Deleted ${publicIds.length} images from Cloudinary`);
+        } catch (cloudinaryError) {
+          console.error("⚠️ Error deleting images from Cloudinary:", cloudinaryError.message);
+          // Continue with product deletion even if Cloudinary deletion fails
+        }
+      }
+    }
+
     await client.flushAll();
 
-    res.status(200).json({ message: "Product Deleted Successfully!" });
+    res.status(200).json({ 
+      message: "Product Deleted Successfully!", 
+      deletedImagesCount: product.images ? product.images.length : 0 
+    });
   } catch (error) {
     res.status(500).json({ message: "Error Deleting Product", error });
   }

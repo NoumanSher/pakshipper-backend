@@ -4,6 +4,7 @@ import validator from "validator";
 const ImageSchema = new mongoose.Schema({
   src: { type: String, required: [true, "Image source is required"] },
   alt: { type: String, required: [true, "Alt text is required for image"] },
+  publicId: { type: String }, // Cloudinary public ID for deletion
   isThumbnail: { type: Boolean, default: false },
 });
 
