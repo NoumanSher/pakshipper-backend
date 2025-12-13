@@ -48,7 +48,8 @@ app.use(
       "https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app",
       "https://www.pakshipper.com",
       "http://localhost:3000", // for local development
-      "https://pakshipper-admin.vercel.app"
+      "https://pakshipper-admin.vercel.app",
+      "http://localhost:3001",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     // credentials: true,
