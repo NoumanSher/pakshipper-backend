@@ -42,17 +42,18 @@ app.use("/assets", express.static(path.join(__dirname, "assets")));
 // app.use(cors());
 
 // Only Allowed URLs
-app.use(cors({
+app.use(
+  cors({
     origin: [
-    'https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app',
-    'https://www.pakshipper.com',
-    'http://localhost:3000', // for local development
-    'https://acbc52568818.ngrok-free.app',
-    'https://36a36a5f2040.ngrok-free.app'
-  ],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  // credentials: true,
-}));
+      "https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app",
+      "https://www.pakshipper.com",
+      "http://localhost:3000", // for local development
+      "https://pakshipper-admin.vercel.app"
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    // credentials: true,
+  })
+);
 // ✅ Raw body parser for Stripe webhook
 app.post(
   "/api/order/webhook/stripe",
