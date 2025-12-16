@@ -19,7 +19,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 dotenv.config(); // Load environment variables
-// const allowedOrigins = process.env.CORS_ORIGINS?.split(",") || [];
+const allowedOrigins = process.env.CORS_ORIGINS?.split(",") || [];
 
 app.use(
   expressSession({
@@ -44,13 +44,14 @@ app.use("/assets", express.static(path.join(__dirname, "assets")));
 // Only Allowed URLs
 app.use(
   cors({
-    origin: [
-      "https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app",
-      "https://www.pakshipper.com",
-      "https://pakshipper-admin.vercel.app",
-      "http://localhost:3000",
-      "http://localhost:3001",
-    ],
+    // origin: [
+    //   "https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app",
+    //   "https://www.pakshipper.com",
+    //   "https://pakshipper-admin.vercel.app",
+    //   "http://localhost:3000",
+    //   "http://localhost:3001",
+    // ],
+    allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     // credentials: true,
   })
