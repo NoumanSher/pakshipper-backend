@@ -47,8 +47,8 @@ app.use(
     origin: [
       "https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app",
       "https://www.pakshipper.com",
-      "http://localhost:3000", // for local development
       "https://pakshipper-admin.vercel.app",
+      "http://localhost:3000",
       "http://localhost:3001",
     ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -73,7 +73,7 @@ app.use("/", mainServerRunnig);
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: ["http://localhost:3001","http://localhost:3000"], // Replace with your actual frontend origins
+    origin: ["http://localhost:3000", "http://localhost:3001"], // Replace with your actual frontend origins
     methods: ["GET", "POST"],
     // credentials: true,
   },
