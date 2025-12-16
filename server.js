@@ -44,16 +44,8 @@ app.use("/assets", express.static(path.join(__dirname, "assets")));
 // Only Allowed URLs
 app.use(
   cors({
-    // origin: [
-    //   "https://e-commerce-3ww4-git-dev-nouman-khans-projects.vercel.app",
-    //   "https://www.pakshipper.com",
-    //   "https://pakshipper-admin.vercel.app",
-    //   "http://localhost:3000",
-    //   "http://localhost:3001",
-    // ],
-    allowedOrigins,
+    origin: allowedOrigins,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    // credentials: true,
   })
 );
 // ✅ Raw body parser for Stripe webhook
