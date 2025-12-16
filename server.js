@@ -66,7 +66,7 @@ app.use("/", mainServerRunnig);
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"], // Replace with your actual frontend origins
+    origin: allowedOrigins, // Replace with your actual frontend origins
     methods: ["GET", "POST"],
     // credentials: true,
   },
