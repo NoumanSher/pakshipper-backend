@@ -1,4 +1,5 @@
-import cloudinaryAdmin from "../../utils/cloudinaryAdmin.js";
+import cloudinary from "../../utils/cloudinary.js";
+import { adminConfig } from "../../utils/cloudinaryAdmin.js";
 import client from "../../config/redis/redisClient.js";
 
 /**
@@ -8,7 +9,8 @@ import client from "../../config/redis/redisClient.js";
  */
 export const deleteSingleImage = async (req, res) => {
   try {
-    const { publicId } = req.params;
+    // Check for publicId in params (url/:id) or query (?publicId=id)
+    const publicId = req.params.publicId || req.query.publicId;
 
     if (!publicId) {
       return res.status(400).json({
@@ -18,12 +20,12 @@ export const deleteSingleImage = async (req, res) => {
     }
 
     // Delete from Cloudinary
-    const result = await cloudinaryAdmin.uploader.destroy(publicId);
+    const result = await cloudinary.uploader.destroy(publicId, adminConfig);
 
     if (result.result === "ok") {
       // Invalidate cache
       await client.flushAll();
-      
+
       res.status(200).json({
         success: true,
         message: "Image deleted successfully from Cloudinary",
@@ -62,7 +64,7 @@ export const deleteBulkImages = async (req, res) => {
     }
 
     // Delete multiple images from Cloudinary
-    const result = await cloudinaryAdmin.api.delete_resources(publicIds);
+    const result = await cloudinary.api.delete_resources(publicIds, adminConfig);
 
     // Invalidate cache
     await client.flushAll();

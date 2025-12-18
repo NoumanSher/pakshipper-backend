@@ -7,6 +7,19 @@ import { deleteSingleImage, deleteBulkImages } from "../controllers/products/del
 const router = express.Router();
 
 /**
+ * @route   DELETE /api/admin/images/bulk
+ * @desc    Delete multiple images from Cloudinary in bulk
+ * @access  Private (Admin only)
+ * @body    { publicIds: ["id1", "id2", "id3"] }
+ */
+router.delete(
+  "/images/bulk",
+  authMiddleware,
+  roleMiddleware("admin"),
+  deleteBulkImages
+);
+
+/**
  * @route   DELETE /api/admin/images/:publicId
  * @desc    Delete single image from Cloudinary
  * @access  Private (Admin only)
@@ -19,16 +32,15 @@ router.delete(
 );
 
 /**
- * @route   DELETE /api/admin/images/bulk
- * @desc    Delete multiple images from Cloudinary in bulk
+ * @route   DELETE /api/admin/delete-image?publicId=folder/image
+ * @desc    Delete single image from Cloudinary using query param (avoids slash issues in URL)
  * @access  Private (Admin only)
- * @body    { publicIds: ["id1", "id2", "id3"] }
  */
 router.delete(
-  "/images/bulk",
+  "/delete-image",
   authMiddleware,
   roleMiddleware("admin"),
-  deleteBulkImages
+  deleteSingleImage
 );
 
 export default router;

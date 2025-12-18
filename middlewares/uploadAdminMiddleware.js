@@ -1,5 +1,6 @@
 import multer from 'multer';
-import cloudinaryAdmin from '../utils/cloudinaryAdmin.js';
+import cloudinary from '../utils/cloudinary.js';
+import { adminConfig } from '../utils/cloudinaryAdmin.js';
 import streamifier from 'streamifier';
 
 const storage = multer.memoryStorage();
@@ -7,9 +8,10 @@ const upload = multer({ storage });
 
 const uploadToCloudinaryAdmin = (buffer, folder = 'ecommerce') => {
   return new Promise((resolve, reject) => {
-    const stream = cloudinaryAdmin.uploader.upload_stream(
-      { 
+    const stream = cloudinary.uploader.upload_stream(
+      {
         folder: folder,
+        ...adminConfig, // Use Admin credentials
         // Optional optimization parameters
         quality: 'auto',
         fetch_format: 'auto',
@@ -34,17 +36,17 @@ const uploadAdminMiddleware = (fieldName = 'images', folder = 'ecommerce') => {
     async (req, res, next) => {
       try {
         if (!req.files || req.files.length === 0) {
-          return res.status(400).json({ 
-            success: false, 
-            message: 'No files uploaded' 
+          return res.status(400).json({
+            success: false,
+            message: 'No files uploaded'
           });
         }
 
-        const uploadPromises = req.files.map((file) => 
+        const uploadPromises = req.files.map((file) =>
           uploadToCloudinaryAdmin(file.buffer, folder)
         );
         const results = await Promise.all(uploadPromises);
-        
+
         req.cloudinaryAdminUrls = results.map((r) => ({
           url: r.secure_url,
           publicId: r.public_id,
@@ -52,10 +54,10 @@ const uploadAdminMiddleware = (fieldName = 'images', folder = 'ecommerce') => {
 
         next();
       } catch (err) {
-        res.status(500).json({ 
-          success: false, 
-          message: 'Upload failed', 
-          error: err.message 
+        res.status(500).json({
+          success: false,
+          message: 'Upload failed',
+          error: err.message
         });
       }
     },

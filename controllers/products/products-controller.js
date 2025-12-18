@@ -1,7 +1,8 @@
 import client from "../../config/redis/redisClient.js";
 import Product from "../../models/products.js";
 import mongoose from "mongoose";
-import cloudinaryAdmin from "../../utils/cloudinaryAdmin.js";
+import cloudinary from "../../utils/cloudinary.js";
+import { adminConfig } from "../../utils/cloudinaryAdmin.js";
 // create Products
 export const createProduct = async (req, res) => {
   try {
@@ -129,7 +130,7 @@ export const deleteProduct = async (req, res) => {
 
       if (publicIds.length > 0) {
         try {
-          await cloudinaryAdmin.api.delete_resources(publicIds);
+          await cloudinary.api.delete_resources(publicIds, adminConfig);
           console.log(`✅ Deleted ${publicIds.length} images from Cloudinary`);
         } catch (cloudinaryError) {
           console.error("⚠️ Error deleting images from Cloudinary:", cloudinaryError.message);
@@ -140,9 +141,9 @@ export const deleteProduct = async (req, res) => {
 
     await client.flushAll();
 
-    res.status(200).json({ 
-      message: "Product Deleted Successfully!", 
-      deletedImagesCount: product.images ? product.images.length : 0 
+    res.status(200).json({
+      message: "Product Deleted Successfully!",
+      deletedImagesCount: product.images ? product.images.length : 0
     });
   } catch (error) {
     res.status(500).json({ message: "Error Deleting Product", error });
