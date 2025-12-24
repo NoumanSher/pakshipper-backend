@@ -3,9 +3,10 @@ import {
   createProduct,
   deleteProduct,
   getAllProducts,
-  getAllProductss,
+  // getAllProductss,
   getLimitedProducts,
   getProductById,
+  getProductBySlug,
   getProductsByCategoryPriority,
   updateProduct,
 } from "../controllers/products/products-controller.js";
@@ -27,13 +28,20 @@ router.post("/create-product", createProduct);
 router.get("/get-product/:id", getProductById);
 
 /**
+ * @route   GET /api/products/get-product-by-slug/:slug
+ * @desc    Get a single product by its SEO slug
+ * @access  Public
+ */
+router.get("/get-product-by-slug/:slug", getProductBySlug);
+
+/**
  * @route   DELETE /api/products/delete-product/:id
  * @desc    Delete a product by ID
  * @access  Admin
  */
 
 router.delete("/delete-product/:id", deleteProduct);
- 
+
 
 /**
  * @route   GET /api/products/get-products-by-category-priority
@@ -53,7 +61,7 @@ router.get("/get-all-products", getAllProducts);
  * @desc    Get all products
  * @access  Public
  */
-router.get("/getall-products", getAllProductss); 
+// router.get("/getall-products", getAllProductss);
 
 /**
  * @route   PUT /api/products/update-product/:id

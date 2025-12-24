@@ -5,6 +5,7 @@ const ImageSchema = new mongoose.Schema({
   src: { type: String, required: [true, "Image source is required"] },
   alt: { type: String, required: [true, "Alt text is required for image"] },
   publicId: { type: String }, // Cloudinary public ID for deletion
+  blurDataURL: { type: String }, // Cloudinary public ID for deletion
   isThumbnail: { type: Boolean, default: false },
 });
 
@@ -118,5 +119,20 @@ const ProductSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+// Add unique index for slug
+ProductSchema.index({ "seo.slug": 1 }, { unique: true });
+
+// Pre-save hook to generate slug if not present (simple version)
+ProductSchema.pre("save", function (next) {
+  if (this.isModified("productName") && !this.seo.slug) {
+    this.seo.slug = this.productName
+      .toLowerCase()
+      .split(" ")
+      .join("-")
+      .replace(/[^\w-]+/g, "");
+  }
+  next();
+});
 
 export default mongoose.model("Product", ProductSchema);

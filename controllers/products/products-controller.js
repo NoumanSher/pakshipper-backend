@@ -109,6 +109,58 @@ export const getProductById = async (req, res) => {
       .json({ message: "Error Fetching Product", error: error.message });
   }
 };
+
+// Product by Slug
+export const getProductBySlug = async (req, res) => {
+  try {
+    const { slug } = req.params;
+
+    if (!slug) {
+      return res.status(400).json({ message: "Slug is required" });
+    }
+
+    const cacheKey = `product:slug:${slug}`;
+
+    // 🔍 Check Redis cache
+    const cached = await client.get(cacheKey);
+    if (cached) {
+      console.log("✅ Cache hit (by Slug)");
+      return res.status(200).json(JSON.parse(cached));
+    }
+
+    const product = await Product.findOne({ "seo.slug": slug })
+      .populate("parentCategoryID", "name")
+      .populate("childCategoryID", "name");
+
+    if (!product) {
+      return res.status(404).json({ message: "Product Not Found" });
+    }
+
+    // Transform the product data to rename fields
+    const transformedProduct = {
+      ...product.toObject(),
+      parentCategoryName: product.parentCategoryID?.name || null,
+      parentCategoryID: product.parentCategoryID?._id || null,
+      childCategoryID: product.childCategoryID?._id || null,
+      childCategoryName: product.childCategoryID?.name || null,
+    };
+
+    const response = {
+      message: "Product Found Successfully",
+      data: transformedProduct,
+    };
+
+    // 💾 Cache result
+    await client.setEx(cacheKey, 300, JSON.stringify(response));
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error fetching product by slug:", error);
+    res
+      .status(500)
+      .json({ message: "Error Fetching Product", error: error.message });
+  }
+};
 // Delete Product
 export const deleteProduct = async (req, res) => {
   try {
@@ -258,100 +310,100 @@ export const getAllProducts = async (req, res) => {
     });
   }
 };
-export const getAllProductss = async (req, res) => {
-  try {
-    const {
-      parentCategoryID,
-      childCategoryID,
-      page = 1,
-      limit = 8,
-      search = "", // <-- new search parameter
-    } = req.query;
+// export const getAllProductss = async (req, res) => {
+//   try {
+//     const {
+//       parentCategoryID,
+//       childCategoryID,
+//       page = 1,
+//       limit = 8,
+//       search = "", // <-- new search parameter
+//     } = req.query;
 
-    // Build the query object
-    const query = {};
-    if (parentCategoryID) query.parentCategoryID = parentCategoryID;
-    if (childCategoryID) query.childCategoryID = childCategoryID;
-    if (search) {
-      query.productName = { $regex: search, $options: "i" }; // case-insensitive partial match
-    }
+//     // Build the query object
+//     const query = {};
+//     if (parentCategoryID) query.parentCategoryID = parentCategoryID;
+//     if (childCategoryID) query.childCategoryID = childCategoryID;
+//     if (search) {
+//       query.productName = { $regex: search, $options: "i" }; // case-insensitive partial match
+//     }
 
-    const pageNumber = parseInt(page, 10);
-    const limitNumber = parseInt(limit, 10);
-    const skip = (pageNumber - 1) * limitNumber;
+//     const pageNumber = parseInt(page, 10);
+//     const limitNumber = parseInt(limit, 10);
+//     const skip = (pageNumber - 1) * limitNumber;
 
-    // 🔑 Update cache key to include search
-    const cacheKey = `products::${new URLSearchParams({
-      parentCategoryID: parentCategoryID || "",
-      childCategoryID: childCategoryID || "",
-      page: String(page),
-      limit: String(limit),
-      search,
-    }).toString()}`;
+//     // 🔑 Update cache key to include search
+//     const cacheKey = `products::${new URLSearchParams({
+//       parentCategoryID: parentCategoryID || "",
+//       childCategoryID: childCategoryID || "",
+//       page: String(page),
+//       limit: String(limit),
+//       search,
+//     }).toString()}`;
 
-    const cached = await client.get(cacheKey);
-    if (cached) {
-      console.log("✅ Cache hit");
-      return res.status(200).json(JSON.parse(cached));
-    }
+//     const cached = await client.get(cacheKey);
+//     if (cached) {
+//       console.log("✅ Cache hit");
+//       return res.status(200).json(JSON.parse(cached));
+//     }
 
-    const products = await Product.find(query)
-      .populate("parentCategoryID", "name")
-      .populate("childCategoryID", "name")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNumber)
-      .lean();
+//     const products = await Product.find(query)
+//       .populate("parentCategoryID", "name")
+//       .populate("childCategoryID", "name")
+//       .sort({ createdAt: -1 })
+//       .skip(skip)
+//       .limit(limitNumber)
+//       .lean();
 
-    const totalProducts = await Product.countDocuments(query);
-    const totalPages = Math.ceil(totalProducts / limitNumber);
+//     const totalProducts = await Product.countDocuments(query);
+//     const totalPages = Math.ceil(totalProducts / limitNumber);
 
-    if (products.length === 0) {
-      return res.status(200).json({
-        message: "No Products Found",
-        data: [],
-      });
-    }
+//     if (products.length === 0) {
+//       return res.status(200).json({
+//         message: "No Products Found",
+//         data: [],
+//       });
+//     }
 
-    const productList = products.map((product) => ({
-      _id: product._id,
-      parentCategoryID: product.parentCategoryID._id,
-      childCategoryID: product.childCategoryID?._id,
-      productName: product.productName,
-      description: product.description,
-      salePrice: product.salePrice,
-      stock: product.stock,
-      discount: product.discount,
-      sku: product.sku,
-      isNew: product.isNew,
-      images: product.images,
-      options: product.options,
-      variants: product.variants,
-      isVariant: product.isVariant,
-      seo: product.seo,
-    }));
+//     const productList = products.map((product) => ({
+//       _id: product._id,
+//       parentCategoryID: product.parentCategoryID._id,
+//       childCategoryID: product.childCategoryID?._id,
+//       productName: product.productName,
+//       description: product.description,
+//       salePrice: product.salePrice,
+//       stock: product.stock,
+//       discount: product.discount,
+//       sku: product.sku,
+//       isNew: product.isNew,
+//       images: product.images,
+//       options: product.options,
+//       variants: product.variants,
+//       isVariant: product.isVariant,
+//       seo: product.seo,
+//     }));
 
-    const response = {
-      message: "Products Retrieved Successfully",
-      data: productList,
-      pagination: {
-        totalProducts,
-        totalPages,
-        currentPage: pageNumber,
-        pageSize: limitNumber,
-      },
-    };
+//     const response = {
+//       message: "Products Retrieved Successfully",
+//       data: productList,
+//       pagination: {
+//         totalProducts,
+//         totalPages,
+//         currentPage: pageNumber,
+//         pageSize: limitNumber,
+//       },
+//     };
 
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
-    res.status(200).json(response);
-  } catch (error) {
-    console.error("Error fetching products:", error);
-    res.status(500).json({
-      message: "Error Fetching Products",
-      error: error.message,
-    });
-  }
-};
+//     await client.setEx(cacheKey, 300, JSON.stringify(response));
+//     res.status(200).json(response);
+//   } catch (error) {
+//     console.error("Error fetching products:", error);
+//     res.status(500).json({
+//       message: "Error Fetching Products",
+//       error: error.message,
+//     });
+//   }
+// };
 
 
 export const getProductsByCategoryPriority = async (req, res) => {
