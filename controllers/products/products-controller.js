@@ -3,6 +3,8 @@ import Product from "../../models/products.js";
 import mongoose from "mongoose";
 import cloudinary from "../../utils/cloudinary.js";
 import { adminConfig } from "../../utils/cloudinaryAdmin.js";
+import ParentCategory from "../../models/categories.js";
+import ChildCategory from "../../models/child-categories.js";
 // create Products
 export const createProduct = async (req, res) => {
   try {
@@ -71,8 +73,8 @@ export const getProductById = async (req, res) => {
     }
 
     const product = await Product.findById(id)
-      .populate("parentCategoryID", "name") // Populate with only the name field
-      .populate("childCategoryID", "name"); // Populate with only the name field
+      .populate("parentCategoryID", "name slug")
+      .populate("childCategoryID", "name slug");
     if (!product) {
       return res.status(404).json({ message: "Product Not Found" });
     }
@@ -80,9 +82,11 @@ export const getProductById = async (req, res) => {
     const transformedProduct = {
       ...product.toObject(),
       parentCategoryName: product.parentCategoryID?.name || null,
+      parentCategorySlug: product.parentCategoryID?.slug || null,
       parentCategoryID: product.parentCategoryID?._id || null,
       childCategoryID: product.childCategoryID?._id || null,
       childCategoryName: product.childCategoryID?.name || null,
+      childCategorySlug: product.childCategoryID?.slug || null,
     };
 
     // // Remove the original parentCategoryID and childCategoryID
@@ -129,8 +133,8 @@ export const getProductBySlug = async (req, res) => {
     }
 
     const product = await Product.findOne({ "seo.slug": slug })
-      .populate("parentCategoryID", "name")
-      .populate("childCategoryID", "name");
+      .populate("parentCategoryID", "name slug")
+      .populate("childCategoryID", "name slug");
 
     if (!product) {
       return res.status(404).json({ message: "Product Not Found" });
@@ -140,9 +144,11 @@ export const getProductBySlug = async (req, res) => {
     const transformedProduct = {
       ...product.toObject(),
       parentCategoryName: product.parentCategoryID?.name || null,
+      parentCategorySlug: product.parentCategoryID?.slug || null,
       parentCategoryID: product.parentCategoryID?._id || null,
       childCategoryID: product.childCategoryID?._id || null,
       childCategoryName: product.childCategoryID?.name || null,
+      childCategorySlug: product.childCategoryID?.slug || null,
     };
 
     const response = {
@@ -201,19 +207,37 @@ export const deleteProduct = async (req, res) => {
     res.status(500).json({ message: "Error Deleting Product", error });
   }
 };
+
 export const getAllProducts = async (req, res) => {
   try {
     const {
       parentCategoryID,
       childCategoryID,
+      parentCategorySlug, // New parameter
+      childCategorySlug,  // New parameter
       page = 1,
       limit = 8,
     } = req.query;
 
     // Build the query object based on provided parameters
     const query = {};
-    if (parentCategoryID) query.parentCategoryID = parentCategoryID;
-    if (childCategoryID) query.childCategoryID = childCategoryID;
+
+    // 🔍 Resolve Slugs to IDs if provided
+    if (parentCategorySlug) {
+      const parentCat = await ParentCategory.findOne({ slug: parentCategorySlug });
+      if (parentCat) query.parentCategoryID = parentCat._id;
+      else return res.status(404).json({ message: "Parent Category not found by slug" });
+    } else if (parentCategoryID) {
+      query.parentCategoryID = parentCategoryID;
+    }
+
+    if (childCategorySlug) {
+      const childCat = await ChildCategory.findOne({ slug: childCategorySlug });
+      if (childCat) query.childCategoryID = childCat._id;
+      else return res.status(404).json({ message: "Child Category not found by slug" });
+    } else if (childCategoryID) {
+      query.childCategoryID = childCategoryID;
+    }
 
     // Convert page and limit to numbers
     const pageNumber = parseInt(page, 10);
@@ -221,10 +245,12 @@ export const getAllProducts = async (req, res) => {
 
     const skip = (pageNumber - 1) * limitNumber;
 
-    // 🔑 Generate a Redis cache key
+    // 🔑 Generate a Redis cache key (including slugs)
     const cacheKey = `products::${new URLSearchParams({
-      parentCategoryID: parentCategoryID || "",
-      childCategoryID: childCategoryID || "",
+      parentCategoryID: query.parentCategoryID || "",
+      childCategoryID: query.childCategoryID || "",
+      parentCategorySlug: parentCategorySlug || "",
+      childCategorySlug: childCategorySlug || "",
       page: String(page),
       limit: String(limit),
     }).toString()}`;
@@ -245,8 +271,6 @@ export const getAllProducts = async (req, res) => {
       .limit(limitNumber)
       .lean();
 
-    // console.log(products);
-
     const totalProducts = await Product.countDocuments(query);
     const totalPages = Math.ceil(totalProducts / limitNumber);
 
@@ -257,11 +281,11 @@ export const getAllProducts = async (req, res) => {
       });
     }
 
-    // Prepare the products list with only the necessary product details
+    // Prepare the products list
     const productList = products.map((product) => ({
       _id: product._id,
-      parentCategoryID: product.parentCategoryID._id,
-      parentCategoryName: product.parentCategoryID.name,
+      parentCategoryID: product.parentCategoryID?._id,
+      parentCategoryName: product.parentCategoryID?.name,
       childCategoryID: product.childCategoryID?._id,
       childCategoryName: product.childCategoryID?.name,
       productName: product.productName,
@@ -291,17 +315,6 @@ export const getAllProducts = async (req, res) => {
     // 💾 Cache the response for 5 minutes
     await client.setEx(cacheKey, 300, JSON.stringify(response));
     res.status(200).json(response);
-
-    // res.status(200).json({
-    //   message: "Products Retrieved Successfully",
-    //   data: productList,
-    //   pagination: {
-    //     totalProducts,
-    //     totalPages,
-    //     currentPage: pageNumber,
-    //     pageSize: limitNumber,
-    //   },
-    // });
   } catch (error) {
     console.error("Error fetching products:", error);
     res.status(500).json({
@@ -310,6 +323,7 @@ export const getAllProducts = async (req, res) => {
     });
   }
 };
+
 // export const getAllProductss = async (req, res) => {
 //   try {
 //     const {
@@ -408,19 +422,51 @@ export const getAllProducts = async (req, res) => {
 
 export const getProductsByCategoryPriority = async (req, res) => {
   try {
-    const { parentCategoryID, childCategoryID } = req.query;
-    // console.log(parentCategoryID);
-    // console.log(childCategoryID);
+    const {
+      parentCategoryID,
+      childCategoryID,
+      parentCategorySlug,
+      childCategorySlug,
+    } = req.query;
+
+    let resolvedParentID = parentCategoryID;
+    let resolvedChildID = childCategoryID;
+
+    // 🔍 Resolve Slugs to IDs if provided
+    if (parentCategorySlug) {
+      const parentCat = await ParentCategory.findOne({
+        slug: parentCategorySlug,
+      });
+      if (parentCat) resolvedParentID = parentCat._id.toString();
+      else
+        return res
+          .status(404)
+          .json({ message: "Parent Category not found by slug" });
+    }
+
+    if (childCategorySlug) {
+      const childCat = await ChildCategory.findOne({
+        slug: childCategorySlug,
+      });
+      if (childCat) resolvedChildID = childCat._id.toString();
+      else
+        return res
+          .status(404)
+          .json({ message: "Child Category not found by slug" });
+    }
+
     // Validate input
-    if (!parentCategoryID) {
+    if (!resolvedParentID) {
       return res
         .status(400)
-        .json({ message: "Parent Category ID is required" });
+        .json({ message: "Parent Category ID or Slug is required" });
     }
     // 🔑 Create a unique cache key
     const cacheKey = `products-priority::${new URLSearchParams({
-      parentCategoryID,
-      childCategoryID: childCategoryID || "",
+      parentCategoryID: resolvedParentID || "",
+      childCategoryID: resolvedChildID || "",
+      parentCategorySlug: parentCategorySlug || "",
+      childCategorySlug: childCategorySlug || "",
     }).toString()}`;
 
     // 🧪 Check Redis cache
@@ -431,9 +477,9 @@ export const getProductsByCategoryPriority = async (req, res) => {
     }
 
     // Fetch all products under the parentCategoryID
-    const products = await Product.find({ parentCategoryID })
-      .populate("parentCategoryID", "name")
-      .populate("childCategoryID", "name");
+    const products = await Product.find({ parentCategoryID: resolvedParentID })
+      .populate("parentCategoryID", "name slug")
+      .populate("childCategoryID", "name slug");
     // console.log(products);
 
     if (products.length === 0) {
@@ -462,10 +508,12 @@ export const getProductsByCategoryPriority = async (req, res) => {
         isVariant: product.isVariant,
         seo: product.seo,
         parentCategoryName: product.parentCategoryID?.name || null,
+        parentCategorySlug: product.parentCategoryID?.slug || null,
         childCategoryName: product.childCategoryID?.name || null,
+        childCategorySlug: product.childCategoryID?.slug || null,
       };
 
-      if (product.childCategoryID?._id.toString() === childCategoryID) {
+      if (product.childCategoryID?._id.toString() === resolvedChildID) {
         prioritizedProducts.push(productData);
       } else {
         otherProducts.push(productData);

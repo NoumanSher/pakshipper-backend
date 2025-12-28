@@ -42,3 +42,40 @@ export const getChildCategoryById = async (req, res) => {
     res.status(500).json({ message: "Error getting Category", error });
   }
 };
+
+/**
+ * @route   GET /api/categories/parent/slug/:slug
+ * @desc    Get a single parent category by its slug
+ * @access  Public
+ */
+export const getParentCategoryBySlug = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const category = await ParentCategories.findOne({ slug });
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    res.status(200).json({ message: "Category found", category });
+  } catch (error) {
+    res.status(500).json({ message: "Error getting Category", error });
+  }
+};
+
+/**
+ * @route   GET /api/categories/child/slug/:slug
+ * @desc    Get a single child category by its slug
+ * @access  Public
+ */
+export const getChildCategoryBySlug = async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const category = await ChildCategories.findOne({ slug });
+    if (!category) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+    res.status(200).json({ message: "Category found", category });
+  } catch (error) {
+    res.status(500).json({ message: "Error getting Category", error });
+  }
+};
+

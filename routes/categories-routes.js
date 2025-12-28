@@ -2,7 +2,9 @@ import express from "express";
 
 import {
   getChildCategoryById,
+  getChildCategoryBySlug,
   getParentCategoryById,
+  getParentCategoryBySlug,
 } from "../controllers/categories/categories.js";
 
 import { getParentCategoriesWithChildren } from "../controllers/categories/get-all-categories/get-all-categories.js";
@@ -69,6 +71,20 @@ router.get("/parent/:id", getParentCategoryById);
  * @access  Public
  */
 router.get("/child/:id", getChildCategoryById);
+
+/**
+ * @route   GET /api/categories/parent/slug/:slug
+ * @desc    Get a parent category by its slug
+ * @access  Public
+ */
+router.get("/parent/slug/:slug", getParentCategoryBySlug);
+
+/**
+ * @route   GET /api/categories/child/slug/:slug
+ * @desc    Get a child category by its slug
+ * @access  Public
+ */
+router.get("/child/slug/:slug", getChildCategoryBySlug);
 
 /**
  * @route   PUT /api/categories/update-parent-category/:id
