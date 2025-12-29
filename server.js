@@ -91,19 +91,21 @@ io.on("connection", (socket) => {
   });
 });
 
-// Start server
-const port = process.env.PORT || 3000;
-httpServer.listen(port, () => {
-  console.log(
-    `🚀 Server running on port ${port}\n${`http://localhost:${port}/`}`.green
-      .underline
-  );
-});
+// Connect to the database and then start server
+try {
+  await ConnectDataBase();
 
-// Connect to the database
-ConnectDataBase().catch((err) => {
-  console.error("❌ Database connection failed:", err);
-});
+  const port = process.env.PORT || 3000;
+  httpServer.listen(port, () => {
+    console.log(
+      `🚀 Server running on port ${port}\n${`http://localhost:${port}/`}`.green
+        .underline
+    );
+  });
+} catch (err) {
+  console.error("❌ Server failed to start due to DB connection error:".red.bold, err);
+  process.exit(1); // Exit if DB connection fails
+}
 
 // Export app
 export default app;
