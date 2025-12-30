@@ -123,6 +123,13 @@ const ProductSchema = new mongoose.Schema(
 // Add unique index for slug
 ProductSchema.index({ "seo.slug": 1 }, { unique: true });
 
+// Add indexes for optimized filtering and sorting
+ProductSchema.index({ parentCategoryID: 1 });
+ProductSchema.index({ childCategoryID: 1 });
+ProductSchema.index({ createdAt: -1 });
+ProductSchema.index({ parentCategoryID: 1, createdAt: -1 });
+ProductSchema.index({ childCategoryID: 1, createdAt: -1 });
+
 // Pre-save hook to generate slug if not present (simple version)
 ProductSchema.pre("save", function (next) {
   if (this.isModified("productName") && !this.seo.slug) {
