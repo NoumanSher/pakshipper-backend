@@ -297,7 +297,6 @@ export const getAllProducts = async (req, res) => {
       projection = {
         ...commonProjection,
         sku: 0,
-        stock: 0,
         description: 0,
         variants: 0,
         discount: 0
@@ -535,7 +534,6 @@ export const getProductsByCategoryPriority = async (req, res) => {
     let projection = {
       ...commonProjection,
       sku: 0,
-      stock: 0,
       description: 0,
       variants: 0,
       discount: 0
