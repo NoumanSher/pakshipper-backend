@@ -10,7 +10,7 @@ import ParentCategories from "../../../models/categories.js";
  */
 export const getAllParentCategories = async (req, res) => {
   try {
-    const categories = await ParentCategories.find().sort({ createdAt: -1 });
+    const categories = await ParentCategories.find().sort({ createdAt: 1 });
 
     res.status(200).json({
       message: "Successfully Fetched!",
