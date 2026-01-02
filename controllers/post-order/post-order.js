@@ -5,7 +5,6 @@ import { sendEmail } from "../../services/email-service.js";
 import { orderConfirmationTemplate } from "../../Templates/orderConfirmationTemplate.js";
 import { adminOrderNotificationTemplate } from "../../Templates/adminOrderNotificationTemplate.js";
 import client from "../../config/redis/redisClient.js";
-import { createCheckoutSession } from "../../lib/stripe.js";
 /**
  * @route POST /api/orders
  * @description Creates a new order with product items, handles stock updates, saves address (if provided), and sends confirmation emails.
@@ -240,11 +239,11 @@ export const createPostOrder = async (req, res) => {
       orderStatuses: responsePostOrder.orderStatuses,
       formattedDate: responsePostOrder.createdAt
         ? new Intl.DateTimeFormat("en-US", {
-            weekday: "long",
-            day: "2-digit",
-            month: "short",
-            year: "numeric",
-          }).format(new Date(responsePostOrder.createdAt))
+          weekday: "long",
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }).format(new Date(responsePostOrder.createdAt))
         : "N/A",
     };
     // console.log(transformedResponse)
@@ -493,6 +492,7 @@ export const AllOrders = async (req, res) => {
       data: transformedResponse,
     });
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: "Failed Fetching", error });
   }
 };
@@ -740,5 +740,69 @@ export const orderStatusUpdate = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: "Error occurred", error });
+  }
+};
+
+/**
+ * @function deletePostOrder
+ * @description Deletes a single order by ID.
+ * @access Admin
+ *
+ * @param {Object} req - Express request object
+ * @param {Object} req.params - URL parameters
+ * @param {string} req.params.id - The ID of the order to delete
+ *
+ * @param {Object} res - Express response object
+ *
+ * @returns {Object} 200 - Success message
+ * @returns {Object} 404 - Order not found
+ * @returns {Object} 500 - Internal server error
+ */
+export const deletePostOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deletedOrder = await PostOrder.findByIdAndDelete(id);
+
+    if (!deletedOrder) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    res.status(200).json({ message: "Order deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete order", error });
+  }
+};
+
+/**
+ * @function bulkDeletePostOrders
+ * @description Deletes multiple orders by their IDs.
+ * @access Admin
+ *
+ * @param {Object} req - Express request object
+ * @param {Object} req.body - Request body
+ * @param {Array<string>} req.body.ids - Array of order IDs to delete
+ *
+ * @param {Object} res - Express response object
+ *
+ * @returns {Object} 200 - Success message with count of deleted orders
+ * @returns {Object} 400 - IDs missing or invalid format
+ * @returns {Object} 500 - Internal server error
+ */
+export const bulkDeletePostOrders = async (req, res) => {
+  try {
+    const { ids } = req.body;
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ message: "No order IDs provided for deletion" });
+    }
+
+    const result = await PostOrder.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      message: `${result.deletedCount} orders deleted successfully`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    res.status(500).json({ message: "Failed to delete orders", error });
   }
 };

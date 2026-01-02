@@ -1,13 +1,16 @@
 import express from "express";
 import {
   AllOrders,
+  bulkDeletePostOrders,
   createPostOrder,
+  deletePostOrder,
   orderStatusUpdate,
   searchOrderNoOrders,
   userAddress,
   userAllOrders,
 } from "../controllers/post-order/post-order.js";
-import { stripeWebhook } from "../controllers/stripe/stripeController.js";
+import authMiddleware from "../middlewares/authMiddleWare.js";
+import roleMiddleware from "../middlewares/roleMiddleWare.js";
 
 const router = express.Router();
 
@@ -17,13 +20,6 @@ const router = express.Router();
  * @access  Authenticated User
  */
 router.post("/create-order", createPostOrder);
-// Stripe requires the raw body to validate the signature
-// Apply this ONLY to the webhook route
-// router.post(
-//   "/webhook/stripe",
-//   express.raw({ type: "application/json" }), // Needed to verify signature
-//   stripeWebhook
-// );
 
 /**
  * @route   GET /api/order/user-all-orders/:userId
@@ -59,5 +55,19 @@ router.get("/all-orders", AllOrders);
  * @access  Admin
  */
 router.put("/update-status", orderStatusUpdate);
+
+/**
+ * @route   DELETE /api/order/delete-order/:id
+ * @desc    Delete a single order (admin)
+ * @access  Admin
+ */
+router.delete("/delete-order/:id", authMiddleware, roleMiddleware("admin"), deletePostOrder);
+
+/**
+ * @route   DELETE /api/order/bulk-delete
+ * @desc    Bulk delete orders (admin)
+ * @access  Admin
+ */
+router.delete("/bulk-delete", authMiddleware, roleMiddleware("admin"), bulkDeletePostOrders);
 
 export default router;
