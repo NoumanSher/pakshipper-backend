@@ -5,6 +5,7 @@ import cloudinary from "../../utils/cloudinary.js";
 import { adminConfig } from "../../utils/cloudinaryAdmin.js";
 import ParentCategory from "../../models/categories.js";
 import ChildCategory from "../../models/child-categories.js";
+import Review from "../../models/Review.js";
 
 let commonProjection = {
   parentCategoryID: 0,
@@ -146,6 +147,7 @@ export const getProductBySlug = async (req, res) => {
     }
 
     const product = await Product.findOne({ "seo.slug": slug })
+      .select("-rating -reveiws")
       .populate("parentCategoryID", "name slug")
       .populate("childCategoryID", "name slug");
 
@@ -164,9 +166,43 @@ export const getProductBySlug = async (req, res) => {
       childCategorySlug: product.childCategoryID?.slug || null,
     };
 
+    // 🌟 Fetch approved reviews and rating stats
+    const [reviews, stats] = await Promise.all([
+      Review.find({ productId: product._id, status: "approved" })
+        .select("-images")
+        .populate("userId", "username")
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean(),
+      Review.aggregate([
+        {
+          $match: {
+            productId: product._id,
+            status: "approved",
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            averageRating: { $avg: "$rating" },
+            totalReviews: { $sum: 1 },
+          },
+        },
+      ]),
+    ]);
+
+    const ratingStats = stats[0] || { averageRating: 0, totalReviews: 0 };
+
     const response = {
       message: "Product Found Successfully",
-      data: transformedProduct,
+      data: {
+        ...transformedProduct,
+        reviews,
+        ratingStats: {
+          averageRating: Math.round((ratingStats.averageRating || 0) * 10) / 10,
+          totalReviews: ratingStats.totalReviews || 0,
+        },
+      },
     };
 
     // 💾 Cache result
