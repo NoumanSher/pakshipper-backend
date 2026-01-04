@@ -28,7 +28,7 @@ import postOrder from "../../models/post-order.js";
  */
 export const createReview = async (req, res) => {
   try {
-    const { userId, productId, rating, description, images } = req.body;
+    const { userId, productId, rating, description, images, createdAt } = req.body;
 
     // Validate required fields
     if (!userId || !productId || !rating || !description) {
@@ -64,6 +64,7 @@ export const createReview = async (req, res) => {
       rating,
       description,
       images,
+      ...(createdAt && { createdAt }),
     });
 
     const savedReview = await newReview.save();
@@ -137,9 +138,9 @@ export const productReview = async (req, res) => {
 
     const reviewQuery = userId
       ? {
-          productId,
-          $or: [{ status: "approved" }, { status: "pending", userId }],
-        }
+        productId,
+        $or: [{ status: "approved" }, { status: "pending", userId }],
+      }
       : { productId, status: "approved" };
 
     const reviews = await Review.find(reviewQuery)
