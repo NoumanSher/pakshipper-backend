@@ -21,7 +21,7 @@ const postOrderSchema = new mongoose.Schema(
       ref: "User",
       required: true,
     },
-    items: [ {
+    items: [{
       productId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Product",
@@ -69,7 +69,7 @@ const postOrderSchema = new mongoose.Schema(
     orderStatuses: [{
       status: {
         type: String,
-        enum: ["Pending", "Shipped", "Delivered", "Cancelled"],
+        enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
         required: true
       },
       statusDesc: {
@@ -147,7 +147,7 @@ postOrderSchema.pre("save", async function (next) {
     );
     this.orderNo = counter.seq.toString().padStart(4, "0"); // Generate padded order number
   }
-  
+
   // Initialize orderStatuses array if it's empty
   if (!this.orderStatuses || this.orderStatuses.length === 0) {
     this.orderStatuses = [{
@@ -156,7 +156,7 @@ postOrderSchema.pre("save", async function (next) {
       updatedAt: new Date()
     }];
   }
-  
+
   next();
 });
 

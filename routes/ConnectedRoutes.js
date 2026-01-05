@@ -9,6 +9,7 @@ import reviewRoutes from "./review-routes.js"; // Product review routes
 import uploadRoutes from "./upload.js"; // Image upload routes
 import adminUploadRoutes from "./admin-upload-routes.js"; // Admin e-commerce image upload routes
 import deleteImagesRoutes from "./delete-images-routes.js"; // Image deletion routes
+import dashboardRoutes from "./dashboard-routes.js"; // Dashboard statistics routes
 // phase-2
 /**
  * Connect all application routes to the Express app.
@@ -28,6 +29,7 @@ const connectedRoutes = (app) => {
   app.use("/api/image", uploadRoutes); // Image uploads (client reviews)
   app.use("/api/admin", adminUploadRoutes); // Admin image uploads (e-commerce store)
   app.use("/api/admin", deleteImagesRoutes); // Image deletion routes
+  app.use("/api/admin/dashboard", dashboardRoutes); // Dashboard statistics routes
 };
 
 export default connectedRoutes;
