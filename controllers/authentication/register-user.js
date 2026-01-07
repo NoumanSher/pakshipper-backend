@@ -12,7 +12,7 @@ import jwt from "jsonwebtoken";
  */
 export const registerUser = async (req, res) => {
   try {
-    const { email, username, mobilePhone, password, confirmPassword } =
+    const { email, username, mobilePhone, password, confirmPassword, role } =
       req.body;
 
     // Check if user already exists
@@ -37,13 +37,14 @@ export const registerUser = async (req, res) => {
       username,
       mobilePhone,
       password: hashedPassword,
-      confirmPassword: hashedPassword, // Note: This could be removed to avoid redundant storage
+      confirmPassword: hashedPassword,
+      role: (role === "admin" || role === "user") ? role : "user",
     });
     // Generate token
     const token = jwt.sign(
       { id: newUser._id, email: newUser.email, role: newUser.role },
       process.env.SECRET_KEY,
-      { expiresIn: "1h" }
+      { expiresIn: "1Day" }
     );
     // Save the user
     await newUser.save();

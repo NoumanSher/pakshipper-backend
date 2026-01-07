@@ -211,10 +211,10 @@ export const createPostOrder = async (req, res) => {
     const transformedResponse = {
       orderId: responsePostOrder._id,
       user: {
-        userId: responsePostOrder.userId._id,
-        username: responsePostOrder.userId.username,
-        email: responsePostOrder.userId.email,
-        phone: responsePostOrder.userId.mobilePhone,
+        userId: responsePostOrder.userId?._id,
+        username: responsePostOrder.userId?.username || "Deleted User",
+        email: responsePostOrder.userId?.email || "N/A",
+        phone: responsePostOrder.userId?.mobilePhone || "N/A",
       },
       items: responsePostOrder.items.map((item) => ({
         productId: item.productId._id,
@@ -347,9 +347,9 @@ export const userAllOrders = async (req, res) => {
     const transformedResponse = userOrders.map((order) => ({
       orderId: order._id,
       user: {
-        username: order.userId.username,
-        email: order.userId.email,
-        phone: order.userId.mobilePhone,
+        username: order.userId?.username || "Deleted User",
+        email: order.userId?.email || "N/A",
+        phone: order.userId?.mobilePhone || "N/A",
       },
       items: order.items.map((item) => ({
         productId: item.productId._id,
@@ -457,9 +457,9 @@ export const AllOrders = async (req, res) => {
     const transformedResponse = userOrders.map((order) => ({
       orderId: order._id,
       user: {
-        username: order.userId.username,
-        email: order.userId.email,
-        phone: order.userId.mobilePhone,
+        username: order.userId?.username || "Deleted User",
+        email: order.userId?.email || "N/A",
+        phone: order.userId?.mobilePhone || "N/A",
       },
       items: order.items.map((item) => ({
         productId: item.productId._id,
@@ -576,9 +576,9 @@ export const searchOrderNoOrders = async (req, res) => {
     const transformedResponse = {
       orderId: orderNoOrder._id,
       user: {
-        username: orderNoOrder.userId.username,
-        email: orderNoOrder.userId.email,
-        phone: orderNoOrder.userId.mobilePhone,
+        username: orderNoOrder.userId?.username || "Deleted User",
+        email: orderNoOrder.userId?.email || "N/A",
+        phone: orderNoOrder.userId?.mobilePhone || "N/A",
       },
       items: orderNoOrder.items.map((item) => {
         const variant = item.productId.variants?.find(
