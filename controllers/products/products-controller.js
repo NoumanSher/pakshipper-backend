@@ -328,14 +328,14 @@ export const getAllProducts = async (req, res) => {
 
     let projection = {};
     if (mode === "seo") {
-      projection = { seo: 1, parentCategoryID: 0, childCategoryID: 0, _id: 0 };
+      projection = { 'seo.slug': 1, parentCategoryID: 0, childCategoryID: 0, _id: 0 };
     } else if (mode === "client") {
       projection = {
         ...commonProjection,
         sku: 0,
         description: 0,
         variants: 0,
-        discount: 0
+        discount: 0,
 
       };
     } else if (mode === "admin") {
@@ -344,6 +344,8 @@ export const getAllProducts = async (req, res) => {
 
         seo: 0,
       };
+    } else if (mode === "images") {
+      projection = { "images.src": 1, "images.alt": 1, productName: 1, "seo.slug": 1, _id: 0, parentCategoryID: 0, childCategoryID: 0 };
     }
 
     // ⚡ Parallel execution of finding products and counting total
@@ -373,6 +375,7 @@ export const getAllProducts = async (req, res) => {
     const productList = products.map((product) => {
       // For SEO mode, we don't need to transform much beyond basic fields
       if (mode === "seo") return product;
+      if (mode === "images") return product;
       if (mode === "client") return product;
       if (mode === "admin") return product;
 
@@ -389,7 +392,7 @@ export const getAllProducts = async (req, res) => {
     const response = {
       message: "Products Retrieved Successfully",
       data: productList,
-      ...(mode === "seo" ? {} : {
+      ...((mode === "seo" || mode === "images") ? {} : {
         pagination: {
           totalProducts,
           totalPages,
