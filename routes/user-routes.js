@@ -1,6 +1,7 @@
 import express from "express";
 import { registerUser } from "../controllers/authentication/register-user.js";
 import { loginUser } from "../controllers/authentication/login-user.js";
+import { refreshToken } from "../controllers/authentication/refresh-token.js";
 import { getUserById } from "../controllers/authentication/get-user-by-id.js";
 import { updateUser } from "../controllers/authentication/update-user.js";
 import { resetPassword } from "../controllers/authentication/reset-password.js";
@@ -31,6 +32,13 @@ router.post("/register-user", registerUser);
  * @access  Public
  */
 router.post("/login-user", loginUser);
+
+/**
+ * @route   POST /api/auth/refresh-token
+ * @desc    Renew access token
+ * @access  Public
+ */
+router.post("/refresh-token", refreshToken);
 
 /**
  * @route   GET /api/auth/user-data/:id

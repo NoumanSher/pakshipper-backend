@@ -44,14 +44,23 @@ export const registerUser = async (req, res) => {
     const token = jwt.sign(
       { id: newUser._id, email: newUser.email, role: newUser.role },
       process.env.SECRET_KEY,
-      { expiresIn: "1Day" }
+      { expiresIn: "15m" }
+    );
+    // Generate refresh token
+    const refreshToken = jwt.sign(
+      { id: newUser._id },
+      process.env.REFRESH_TOKEN_SECRET || "refresh_secret_hey",
+      { expiresIn: "7d" }
     );
     // Save the user
+    await newUser.save();
+    // Store refresh token in user document
+    newUser.refreshToken = refreshToken;
     await newUser.save();
 
     res
       .status(201)
-      .json({ message: "User registered successfully", data: newUser, token });
+      .json({ message: "User registered successfully", data: newUser, token, refreshToken });
   } catch (error) {
     res.status(500).json({ message: "Error creating user", error });
   }

@@ -30,20 +30,32 @@ export const loginUser = async (req, res) => {
       return res.status(400).json({ message: "Invalid email or password" });
     }
 
-    // Generate token
+    // Generate access token (short-lived)
     const token = jwt.sign(
       { id: user._id, email: user.email, role: user.role },
       process.env.SECRET_KEY,
-      { expiresIn: "1h" }
+      { expiresIn: "15m" } // Access token valid for 15 minutes
     );
 
-    // Exclude password from returned user object
-    const { password: _, ...userWithoutPassword } = user.toObject();
+    // Generate refresh token (long-lived)
+    const refreshToken = jwt.sign(
+      { id: user._id },
+      process.env.REFRESH_TOKEN_SECRET || "refresh_secret_hey",
+      { expiresIn: "7d" } // Refresh token valid for 7 days
+    );
+
+    // Store refresh token in user document
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    // Exclude password and refreshToken from returned user object (for security, or you can include it if needed)
+    const { password: _, refreshToken: __, ...userWithoutPassword } = user.toObject();
 
     res.status(200).json({
       message: "Login successful",
       data: userWithoutPassword,
       token,
+      refreshToken,
     });
   } catch (error) {
     res.status(500).json({ message: "Error logging in", error });
