@@ -10,6 +10,7 @@ import uploadRoutes from "./upload.js"; // Image upload routes
 import adminUploadRoutes from "./admin-upload-routes.js"; // Admin e-commerce image upload routes
 import deleteImagesRoutes from "./delete-images-routes.js"; // Image deletion routes
 import dashboardRoutes from "./dashboard-routes.js"; // Dashboard statistics routes
+import roleRoutes from "./RoleRoutes.js"; // Role management routes
 // phase-2
 /**
  * Connect all application routes to the Express app.
@@ -30,6 +31,7 @@ const connectedRoutes = (app) => {
   app.use("/api/admin", adminUploadRoutes); // Admin image uploads (e-commerce store)
   app.use("/api/admin", deleteImagesRoutes); // Image deletion routes
   app.use("/api/admin/dashboard", dashboardRoutes); // Dashboard statistics routes
+  app.use("/api/roles", roleRoutes); // Role management routes
 };
 
 export default connectedRoutes;

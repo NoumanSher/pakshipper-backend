@@ -18,8 +18,8 @@ export const loginUser = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email });
+    // Find user by email and populate role
+    const user = await User.findOne({ email }).populate("role");
     if (!user) {
       return res.status(400).json({ message: "Invalid email or password" });
     }
@@ -32,7 +32,12 @@ export const loginUser = async (req, res) => {
 
     // Generate access token (short-lived)
     const token = jwt.sign(
-      { id: user._id, email: user.email, role: user.role },
+      {
+        id: user._id,
+        email: user.email,
+        role: user.role?.name || "user",
+        permissions: user.role?.permissions || [],
+      },
       process.env.SECRET_KEY,
       { expiresIn: "15m" } // Access token valid for 15 minutes
     );

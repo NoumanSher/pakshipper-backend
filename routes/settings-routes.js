@@ -1,6 +1,6 @@
 import express from "express";
 import authMiddleware from "../middlewares/authMiddleWare.js";
-import roleMiddleware from "../middlewares/roleMiddleWare.js";
+import checkPermission from "../middlewares/permissionMiddleWare.js";
 import { getSettings } from "../controllers/settiing/get-seetings.js";
 import { createOrUpdateSettings } from "../controllers/settiing/create-setting.js";
 import { updateSettings } from "../controllers/settiing/update-settings.js";
@@ -23,7 +23,7 @@ router.get("/", getSettings);
 router.post(
   "/create",
   authMiddleware,
-  roleMiddleware("admin"),
+  checkPermission("manage:settings"),
   createOrUpdateSettings
 );
 
@@ -35,7 +35,7 @@ router.post(
 router.put(
   "/update",
   authMiddleware,
-  roleMiddleware("admin"),
+  checkPermission("manage:settings"),
   updateSettings
 );
 

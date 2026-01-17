@@ -10,8 +10,8 @@ import User from "../../models/user-schema.js";
  */
 export const getAllUsers = async (req, res) => {
   try {
-    // Fetch all users excluding password field
-    const users = await User.find({}, "-password");
+    // Fetch all users excluding sensitive fields and populate role
+    const users = await User.find({}, "-password -refreshToken").populate("role");
 
     res.status(200).json({
       message: "Users fetched successfully",

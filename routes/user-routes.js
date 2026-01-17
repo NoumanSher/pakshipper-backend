@@ -9,12 +9,13 @@ import { forgetPassword } from "../controllers/authentication/forget-password.js
 import { getAllUsers } from "../controllers/authentication/get-all-user.js";
 import { getMe } from "../controllers/authentication/get-me.js";
 import authMiddleware from "../middlewares/authMiddleWare.js";
-import roleMiddleware from "../middlewares/roleMiddleWare.js";
+import checkPermission from "../middlewares/permissionMiddleWare.js";
 import passport from "../OAuth/Google/googleStrategy.js";
 // Ensure LinkedIn strategy is registered (side-effect import)
 import "../OAuth/LinkedIn/LinkdinStaregy.js";
 import { deleteUser } from "../controllers/authentication/delete-user.js";
 import { bulkDeleteUsers } from "../controllers/authentication/bulk-delete-users.js";
+import { adminCreateUser } from "../controllers/authentication/admin-create-user.js";
 // import passportL from "../OAuth/LinkedIn/LinkdinStaregy.js";
 
 const router = express.Router();
@@ -73,21 +74,28 @@ router.post("/forget-password", authMiddleware, forgetPassword);
  * @desc    Get all users (Admin only)
  * @access  Private/Admin
  */
-router.get("/all", authMiddleware, roleMiddleware("admin"), getAllUsers);
+router.get("/all", authMiddleware, checkPermission("read:customers"), getAllUsers);
 
 /**
  * @route   DELETE /api/auth/delete-user/:id
  * @desc    Delete a single user (Admin only)
  * @access  Private/Admin
  */
-router.delete("/delete-user/:id", authMiddleware, roleMiddleware("admin"), deleteUser);
+router.delete("/delete-user/:id", authMiddleware, checkPermission("manage:users"), deleteUser);
 
 /**
  * @route   DELETE /api/auth/delete-users
  * @desc    Delete multiple users (Admin only)
  * @access  Private/Admin
  */
-router.delete("/delete-users", authMiddleware, roleMiddleware("admin"), bulkDeleteUsers);
+router.delete("/delete-users", authMiddleware, checkPermission("manage:users"), bulkDeleteUsers);
+
+/**
+ * @route   POST /api/auth/admin/create-user
+ * @desc    Create a user with a specific role (Admin only)
+ * @access  Private/Admin
+ */
+router.post("/admin/create-user", authMiddleware, checkPermission("manage:users"), adminCreateUser);
 
 // Get current authenticated user via token (JWT)
 router.get("/me", authMiddleware, getMe);

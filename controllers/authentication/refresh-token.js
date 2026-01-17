@@ -26,14 +26,19 @@ export const refreshToken = async (req, res) => {
         );
 
         // Find user and check if the stored refresh token matches
-        const user = await User.findById(decoded.id);
+        const user = await User.findById(decoded.id).populate("role");
         if (!user || user.refreshToken !== providedRefreshToken) {
             return res.status(403).json({ message: "Invalid refresh token" });
         }
 
         // Generate new access token
         const accessToken = jwt.sign(
-            { id: user._id, email: user.email, role: user.role },
+            {
+                id: user._id,
+                email: user.email,
+                role: user.role?.name || "user",
+                permissions: user.role?.permissions || [],
+            },
             process.env.SECRET_KEY,
             { expiresIn: "15m" }
         );

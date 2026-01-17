@@ -1,6 +1,5 @@
-const roleMiddleware = (role) => (req, res, next) => {
-    console.log(req.user)
-    if (req.user.role !== role) {
+const roleMiddleware = (roleName) => (req, res, next) => {
+    if (!req.user || req.user.role !== roleName) {
         return res.status(403).json({ error: 'Access denied. You do not have the required permissions.' });
     }
     next();

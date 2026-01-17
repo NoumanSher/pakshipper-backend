@@ -10,7 +10,7 @@ import {
   userReviewEdit,
 } from "../controllers/review/review-controllers.js";
 import authMiddleware from "../middlewares/authMiddleWare.js";
-import roleMiddleware from "../middlewares/roleMiddleWare.js";
+import checkPermission from "../middlewares/permissionMiddleWare.js";
 
 const router = express.Router();
 
@@ -36,7 +36,7 @@ router.get("/product/:productId", productReview);
 router.get(
   "/admin/all",
   authMiddleware,
-  roleMiddleware("admin"),
+  checkPermission("read:reviews"),
   adminAllReview
 );
 
@@ -48,7 +48,7 @@ router.get(
 router.put(
   "/admin/:reviewId/status",
   authMiddleware,
-  roleMiddleware("admin"),
+  checkPermission("manage:reviews"),
   statusApprove
 );
 

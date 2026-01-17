@@ -1,7 +1,7 @@
 // routes/delete-images-routes.js
 import express from "express";
 import authMiddleware from "../middlewares/authMiddleWare.js";
-import roleMiddleware from "../middlewares/roleMiddleWare.js";
+import checkPermission from "../middlewares/permissionMiddleWare.js";
 import { deleteSingleImage, deleteBulkImages } from "../controllers/products/delete-images-controller.js";
 
 const router = express.Router();
@@ -15,7 +15,7 @@ const router = express.Router();
 router.delete(
   "/images/bulk",
   authMiddleware,
-  roleMiddleware("admin"),
+  checkPermission("manage:uploads"),
   deleteBulkImages
 );
 
@@ -27,7 +27,7 @@ router.delete(
 router.delete(
   "/images/:publicId",
   authMiddleware,
-  roleMiddleware("admin"),
+  checkPermission("manage:uploads"),
   deleteSingleImage
 );
 
@@ -39,7 +39,7 @@ router.delete(
 router.delete(
   "/delete-image",
   authMiddleware,
-  roleMiddleware("admin"),
+  checkPermission("manage:uploads"),
   deleteSingleImage
 );
 

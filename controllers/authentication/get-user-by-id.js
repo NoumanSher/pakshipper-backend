@@ -12,8 +12,8 @@ export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Fetch user by ID and exclude the password field
-    const user = await User.findById(id, "-password");
+    // Fetch user by ID and exclude sensitive fields, populate role
+    const user = await User.findById(id, "-password -refreshToken").populate("role");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }

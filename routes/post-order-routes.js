@@ -10,7 +10,7 @@ import {
   userAllOrders,
 } from "../controllers/post-order/post-order.js";
 import authMiddleware from "../middlewares/authMiddleWare.js";
-import roleMiddleware from "../middlewares/roleMiddleWare.js";
+import checkPermission from "../middlewares/permissionMiddleWare.js";
 
 const router = express.Router();
 
@@ -61,13 +61,13 @@ router.put("/update-status", orderStatusUpdate);
  * @desc    Delete a single order (admin)
  * @access  Admin
  */
-router.delete("/delete-order/:id", authMiddleware, roleMiddleware("admin"), deletePostOrder);
+router.delete("/delete-order/:id", authMiddleware, checkPermission("manage:orders"), deletePostOrder);
 
 /**
  * @route   DELETE /api/order/bulk-delete
  * @desc    Bulk delete orders (admin)
  * @access  Admin
  */
-router.delete("/bulk-delete", authMiddleware, roleMiddleware("admin"), bulkDeletePostOrders);
+router.delete("/bulk-delete", authMiddleware, checkPermission("manage:orders"), bulkDeletePostOrders);
 
 export default router;

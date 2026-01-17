@@ -43,7 +43,7 @@ const userSchema = new mongoose.Schema(
       unique: true,
       sparse: true, // Allows multiple users to not have googleId
     },
-    role: { type: String, enum: ["user", "admin"], default: "user" },
+    role: { type: mongoose.Schema.Types.ObjectId, ref: "Role" },
     password: {
       type: String,
       required: [true, "Password Required"],

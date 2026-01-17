@@ -1,7 +1,7 @@
 // routes/admin-upload-routes.js
 import express from "express";
 import authMiddleware from "../middlewares/authMiddleWare.js";
-import roleMiddleware from "../middlewares/roleMiddleWare.js";
+import checkPermission from "../middlewares/permissionMiddleWare.js";
 import uploadAdminMiddleware from "../middlewares/uploadAdminMiddleware.js";
 
 const router = express.Router();
@@ -15,7 +15,7 @@ const router = express.Router();
 router.post(
   "/upload-images",
   authMiddleware,
-  roleMiddleware("admin"),
+  checkPermission("manage:uploads"),
   uploadAdminMiddleware("images", "ecommerce"),
   (req, res) => {
     try {

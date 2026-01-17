@@ -1,5 +1,6 @@
 import bcrypt from "bcrypt";
 import User from "../../models/user-schema.js";
+import Role from "../../models/Role.js";
 import jwt from "jsonwebtoken";
 
 /**
@@ -12,8 +13,7 @@ import jwt from "jsonwebtoken";
  */
 export const registerUser = async (req, res) => {
   try {
-    const { email, username, mobilePhone, password, confirmPassword, role } =
-      req.body;
+    const { email, username, mobilePhone, password, confirmPassword } = req.body;
 
     // Check if user already exists
     const existingUser = await User.findOne({ email });
@@ -31,6 +31,12 @@ export const registerUser = async (req, res) => {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    // Get the default "user" role
+    const userRole = await Role.findOne({ name: "user" });
+    if (!userRole) {
+      return res.status(500).json({ message: "Default user role not found. Please run seed script." });
+    }
+
     // Create new user
     const newUser = new User({
       email,
@@ -38,29 +44,44 @@ export const registerUser = async (req, res) => {
       mobilePhone,
       password: hashedPassword,
       confirmPassword: hashedPassword,
-      role: (role === "admin" || role === "user") ? role : "user",
+      role: userRole._id,
     });
-    // Generate token
+
+    // Save the user
+    await newUser.save();
+
+    // Generate token with populated role info
     const token = jwt.sign(
-      { id: newUser._id, email: newUser.email, role: newUser.role },
+      {
+        id: newUser._id,
+        email: newUser.email,
+        role: userRole.name,
+        permissions: userRole.permissions,
+      },
       process.env.SECRET_KEY,
       { expiresIn: "15m" }
     );
+
     // Generate refresh token
     const refreshToken = jwt.sign(
       { id: newUser._id },
       process.env.REFRESH_TOKEN_SECRET || "refresh_secret_hey",
       { expiresIn: "7d" }
     );
-    // Save the user
-    await newUser.save();
+
     // Store refresh token in user document
     newUser.refreshToken = refreshToken;
     await newUser.save();
 
-    res
-      .status(201)
-      .json({ message: "User registered successfully", data: newUser, token, refreshToken });
+    // Exclude password and refreshToken from returned user object
+    const { password: _, refreshToken: __, ...userWithoutPassword } = newUser.toObject();
+
+    res.status(201).json({
+      message: "User registered successfully",
+      data: userWithoutPassword,
+      token,
+      refreshToken,
+    });
   } catch (error) {
     res.status(500).json({ message: "Error creating user", error });
   }
