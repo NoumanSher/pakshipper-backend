@@ -47,27 +47,27 @@ router.get("/userAdress/:userId", userAddress);
  * @desc    Get all orders (admin)
  * @access  Admin
  */
-router.get("/all-orders", AllOrders);
+router.get("/all-orders", authMiddleware, checkPermission("read:orders"), AllOrders);
 
 /**
  * @route   PUT /api/order/update-status
  * @desc    Update order status (admin)
  * @access  Admin
  */
-router.put("/update-status", orderStatusUpdate);
+router.put("/update-status", authMiddleware, checkPermission("write:orders"), orderStatusUpdate);
 
 /**
  * @route   DELETE /api/order/delete-order/:id
  * @desc    Delete a single order (admin)
  * @access  Admin
  */
-router.delete("/delete-order/:id", authMiddleware, checkPermission("manage:orders"), deletePostOrder);
+router.delete("/delete-order/:id", authMiddleware, checkPermission("delete:orders"), deletePostOrder);
 
 /**
  * @route   DELETE /api/order/bulk-delete
  * @desc    Bulk delete orders (admin)
  * @access  Admin
  */
-router.delete("/bulk-delete", authMiddleware, checkPermission("manage:orders"), bulkDeletePostOrders);
+router.delete("/bulk-delete", authMiddleware, checkPermission("delete:orders"), bulkDeletePostOrders);
 
 export default router;

@@ -1,10 +1,12 @@
 import express from "express";
+import authMiddleware from "../middlewares/authMiddleWare.js";
+import checkPermission from "../middlewares/permissionMiddleWare.js";
 
 import {
-  getChildCategoryById,
-  getChildCategoryBySlug,
-  getParentCategoryById,
-  getParentCategoryBySlug,
+    getChildCategoryById,
+    getChildCategoryBySlug,
+    getParentCategoryById,
+    getParentCategoryBySlug,
 } from "../controllers/categories/categories.js";
 
 import { getParentCategoriesWithChildren } from "../controllers/categories/get-all-categories/get-all-categories.js";
@@ -35,14 +37,14 @@ router.get("/all", getParentCategoriesWithChildren);
  * @desc    Create a new parent category
  * @access  Admin
  */
-router.post("/create-parent-category", createParentCategory);
+router.post("/create-parent-category", authMiddleware, checkPermission("write:categories"), createParentCategory);
 
 /**
  * @route   POST /api/categories/create-child-category
  * @desc    Create a new child category
  * @access  Admin
  */
-router.post("/create-child-category", createChildCategory);
+router.post("/create-child-category", authMiddleware, checkPermission("write:categories"), createChildCategory);
 
 /**
  * @route   GET /api/categories/all-parent
@@ -91,14 +93,14 @@ router.get("/child/slug/:slug", getChildCategoryBySlug);
  * @desc    Update a parent category
  * @access  Admin
  */
-router.put("/update-parent-category/:id", updateParentCategory);
+router.put("/update-parent-category/:id", authMiddleware, checkPermission("write:categories"), updateParentCategory);
 
 /**
  * @route   DELETE /api/categories/delete-parent-category/:id
  * @desc    Delete a parent category
  * @access  Admin
  */
-router.delete("/delete-parent-category/:id", deleteParentCategory);
+router.delete("/delete-parent-category/:id", authMiddleware, checkPermission("delete:categories"), deleteParentCategory);
 
 /**
  * @route   GET /api/categories/parent/:id/children
@@ -112,13 +114,13 @@ router.get("/parent/:id/children", getChildCategoriesByParentId);
  * @desc    Update a child category
  * @access  Admin
  */
-router.put("/update-child-category/:id", updateChildCategory);
+router.put("/update-child-category/:id", authMiddleware, checkPermission("write:categories"), updateChildCategory);
 
 /**
  * @route   DELETE /api/categories/delete-child-category/:id
  * @desc    Delete a child category
  * @access  Admin
  */
-router.delete("/delete-child-category/:id", deleteChildCategory);
+router.delete("/delete-child-category/:id", authMiddleware, checkPermission("delete:categories"), deleteChildCategory);
 
 export default router;

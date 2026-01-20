@@ -48,8 +48,20 @@ router.get(
 router.put(
   "/admin/:reviewId/status",
   authMiddleware,
-  checkPermission("manage:reviews"),
+  checkPermission("write:reviews"),
   statusApprove
+);
+
+/**
+ * @route DELETE /api/reviews/admin/:reviewId
+ * @desc Delete a review by admin
+ * @access Admin
+ */
+router.delete(
+  "/admin/:reviewId",
+  authMiddleware,
+  checkPermission("delete:reviews"),
+  deleteReveiw
 );
 
 /**

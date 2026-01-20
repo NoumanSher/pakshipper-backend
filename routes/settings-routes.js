@@ -23,7 +23,7 @@ router.get("/", getSettings);
 router.post(
   "/create",
   authMiddleware,
-  checkPermission("manage:settings"),
+  checkPermission("write:settings"),
   createOrUpdateSettings
 );
 
@@ -35,15 +35,15 @@ router.post(
 router.put(
   "/update",
   authMiddleware,
-  checkPermission("manage:settings"),
+  checkPermission("write:settings"),
   updateSettings
 );
 
 /**
  * @route   DELETE /api/settings
  * @desc    Delete all settings
- * @access  Public (⚠️ Consider restricting to Admin)
+ * @access  Admin
  */
-router.delete("/", deleteSettings);
+router.delete("/", authMiddleware, checkPermission("write:settings"), deleteSettings);
 
 export default router;

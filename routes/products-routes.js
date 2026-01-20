@@ -11,6 +11,10 @@ import {
   updateProduct,
 } from "../controllers/products/products-controller.js";
 
+// import products from "../models/products.js";
+import authMiddleware from "../middlewares/authMiddleWare.js";
+import checkPermission from "../middlewares/permissionMiddleWare.js";
+
 const router = express.Router();
 
 /**
@@ -18,14 +22,14 @@ const router = express.Router();
  * @desc    Create a new product
  * @access  Admin
  */
-router.post("/create-product", createProduct);
+router.post("/create-product", authMiddleware, checkPermission("write:products"), createProduct);
 
 /**
  * @route   GET /api/products/get-product/:id
  * @desc    Get a single product by its ID
  * @access  Public
  */
-router.get("/get-product/:id", getProductById);
+router.get("/get-product/:id", authMiddleware, checkPermission("read:products"), getProductById);
 
 /**
  * @route   GET /api/products/get-product-by-slug/:slug
@@ -40,7 +44,7 @@ router.get("/get-product-by-slug/:slug", getProductBySlug);
  * @access  Admin
  */
 
-router.delete("/delete-product/:id", deleteProduct);
+router.delete("/delete-product/:id", authMiddleware, checkPermission("delete:products"), deleteProduct);
 
 
 /**
@@ -68,7 +72,7 @@ router.get("/get-all-products", getAllProducts);
  * @desc    Update a product by its ID
  * @access  Admin
  */
-router.put("/update-product/:id", updateProduct);
+router.put("/update-product/:id", authMiddleware, checkPermission("update:products"), updateProduct);
 
 /**
  * @route   GET /api/products/get-limited-products

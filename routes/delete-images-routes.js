@@ -15,7 +15,7 @@ const router = express.Router();
 router.delete(
   "/images/bulk",
   authMiddleware,
-  checkPermission("manage:uploads"),
+  checkPermission("delete:products"),
   deleteBulkImages
 );
 
@@ -27,7 +27,7 @@ router.delete(
 router.delete(
   "/images/:publicId",
   authMiddleware,
-  checkPermission("manage:uploads"),
+  checkPermission("delete:products"),
   deleteSingleImage
 );
 
@@ -39,7 +39,7 @@ router.delete(
 router.delete(
   "/delete-image",
   authMiddleware,
-  checkPermission("manage:uploads"),
+  checkPermission("delete:products"),
   deleteSingleImage
 );
 

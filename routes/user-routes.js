@@ -81,21 +81,21 @@ router.get("/all", authMiddleware, checkPermission("read:customers"), getAllUser
  * @desc    Delete a single user (Admin only)
  * @access  Private/Admin
  */
-router.delete("/delete-user/:id", authMiddleware, checkPermission("manage:users"), deleteUser);
+router.delete("/delete-user/:id", authMiddleware, checkPermission("delete:customers"), deleteUser);
 
 /**
  * @route   DELETE /api/auth/delete-users
  * @desc    Delete multiple users (Admin only)
  * @access  Private/Admin
  */
-router.delete("/delete-users", authMiddleware, checkPermission("manage:users"), bulkDeleteUsers);
+router.delete("/delete-users", authMiddleware, checkPermission("delete:customers"), bulkDeleteUsers);
 
 /**
  * @route   POST /api/auth/admin/create-user
  * @desc    Create a user with a specific role (Admin only)
  * @access  Private/Admin
  */
-router.post("/admin/create-user", authMiddleware, checkPermission("manage:users"), adminCreateUser);
+router.post("/admin/create-user", authMiddleware, checkPermission("write:customers"), adminCreateUser);
 
 // Get current authenticated user via token (JWT)
 router.get("/me", authMiddleware, getMe);

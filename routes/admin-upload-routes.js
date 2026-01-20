@@ -13,25 +13,25 @@ const router = express.Router();
  * @param   {string} folder - Query parameter for folder path (e.g., 'products', 'categories')
  */
 router.post(
-  "/upload-images",
-  authMiddleware,
-  checkPermission("manage:uploads"),
-  uploadAdminMiddleware("images", "ecommerce"),
-  (req, res) => {
-    try {
-      res.status(200).json({
-        success: true,
-        message: "Images uploaded successfully",
-        images: req.cloudinaryAdminUrls,
-      });
-    } catch (err) {
-      res.status(500).json({
-        success: false,
-        message: "Error processing upload response",
-        error: err.message,
-      });
+    "/upload-images",
+    authMiddleware,
+    checkPermission("write:products"),
+    uploadAdminMiddleware("images", "ecommerce"),
+    (req, res) => {
+        try {
+            res.status(200).json({
+                success: true,
+                message: "Images uploaded successfully",
+                images: req.cloudinaryAdminUrls,
+            });
+        } catch (err) {
+            res.status(500).json({
+                success: false,
+                message: "Error processing upload response",
+                error: err.message,
+            });
+        }
     }
-  }
 );
 
 export default router;
