@@ -30,7 +30,7 @@ export const stripeWebhook = async (req, res) => {
         // Assume you stored orderId or userId in metadata at checkout creation
         const userId = session.metadata.userId;
         const orderNo = session.metadata.orderNo;
-    
+
 
         // Find order by orderNo or userId (depending on what you saved)
         const order = await postOrder.findOne({ userId, orderNo });
@@ -83,11 +83,11 @@ export const stripeWebhook = async (req, res) => {
           orderStatuses: responsePostOrder.orderStatuses,
           formattedDate: responsePostOrder.createdAt
             ? new Intl.DateTimeFormat("en-US", {
-                weekday: "long",
-                day: "2-digit",
-                month: "short",
-                year: "numeric",
-              }).format(new Date(responsePostOrder.createdAt))
+              weekday: "long",
+              day: "2-digit",
+              month: "short",
+              year: "numeric",
+            }).format(new Date(responsePostOrder.createdAt))
             : "N/A",
         };
         // console.log(transformedResponse)
@@ -107,7 +107,7 @@ export const stripeWebhook = async (req, res) => {
         // // console.log(responsePostOrder.userId.email)
         await sendEmail(responsePostOrder.userId.email, subject, text, html);
         await sendEmail(process.env.EMAIL_USER, adminSubject, adminText, html1);
-        await sendEmail("nk104626@gmail.com", adminSubject, adminText, html1);
+        await sendEmail("pakshipperstore@gmail.com", adminSubject, adminText, html1);
         await client.flushAll();
 
         console.log(`Order ${order._id} marked as paid.`);

@@ -13,7 +13,7 @@ let transporter = nodemailer.createTransport({
 /**
  * Send an email using the Nodemailer transporter
  * @param {string} to - Recipient email address
- * @param {string} subject - Email subject
+ * @param {string} subject - Email subject 
  * @param {string} text - Plain text version of the email content
  * @param {string} html - HTML version of the email content
  * @returns {Promise<void>}

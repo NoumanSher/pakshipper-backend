@@ -4,6 +4,7 @@ import Address from "../../models/address.js";
 import { sendEmail } from "../../services/email-service.js";
 import { orderConfirmationTemplate } from "../../Templates/orderConfirmationTemplate.js";
 import { adminOrderNotificationTemplate } from "../../Templates/adminOrderNotificationTemplate.js";
+import { orderStatusUpdateTemplate } from "../../Templates/orderStatusUpdateTemplate.js";
 import client from "../../config/redis/redisClient.js";
 /**
  * @route POST /api/orders
@@ -260,7 +261,7 @@ export const createPostOrder = async (req, res) => {
     // // console.log(responsePostOrder.userId.email)
     await sendEmail(responsePostOrder.userId.email, subject, text, html);
     await sendEmail(process.env.EMAIL_USER, adminSubject, adminText, html1);
-    await sendEmail("nk104626@gmail.com", adminSubject, adminText, html1);
+    await sendEmail("pakshipperstore@gmail.com", adminSubject, adminText, html1);
     await client.flushAll();
 
     res.status(201).json({
@@ -733,6 +734,15 @@ export const orderStatusUpdate = async (req, res) => {
 
     // Save the updated order
     await order.save();
+
+    // Send email notification to user
+    if (order.userId && order.userId.email) {
+      const { subject, text, html } = orderStatusUpdateTemplate(
+        order,
+        { status, statusDesc }
+      );
+      await sendEmail(order.userId.email, subject, text, html);
+    }
 
     return res.status(200).json({
       message: "Order status updated successfully",
