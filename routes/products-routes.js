@@ -10,10 +10,20 @@ import {
   getProductsByCategoryPriority,
   updateProduct,
 } from "../controllers/products/products-controller.js";
+import {
+  approveProduct,
+  rejectProduct,
+  resubmitProduct,
+  getPendingProducts,
+  getApprovalHistory,
+  autoApproveExistingProducts,
+} from "../controllers/products/approval-controller.js";
 
 // import products from "../models/products.js";
 import authMiddleware from "../middlewares/authMiddleWare.js";
 import checkPermission from "../middlewares/permissionMiddleWare.js";
+import checkOwnershipOrPermission from "../middlewares/checkOwnershipOrPermission.js";
+import checkResubmitPermission from "../middlewares/checkResubmitPermission.js";
 
 const router = express.Router();
 
@@ -44,7 +54,7 @@ router.get("/get-product-by-slug/:slug", getProductBySlug);
  * @access  Admin
  */
 
-router.delete("/delete-product/:id", authMiddleware, checkPermission("delete:products"), deleteProduct);
+router.delete("/delete-product/:id", authMiddleware, checkOwnershipOrPermission("products", "delete"), deleteProduct);
 
 
 /**
@@ -72,7 +82,7 @@ router.get("/get-all-products", getAllProducts);
  * @desc    Update a product by its ID
  * @access  Admin
  */
-router.put("/update-product/:id", authMiddleware, checkPermission("update:products"), updateProduct);
+router.put("/update-product/:id", authMiddleware, checkOwnershipOrPermission("products", "update"), updateProduct);
 
 /**
  * @route   GET /api/products/get-limited-products
@@ -80,5 +90,51 @@ router.put("/update-product/:id", authMiddleware, checkPermission("update:produc
  * @access  Public
  */
 router.get("/get-limited-products", getLimitedProducts);
+
+// =============================================
+// PRODUCT APPROVAL ROUTES
+// =============================================
+
+/**
+ * @route   GET /api/products/pending
+ * @desc    Get all pending products for approval
+ * @access  Admin or users with product_approval permission
+ */
+router.get("/pending", authMiddleware, checkPermission("product_approval"), getPendingProducts);
+
+/**
+ * @route   PATCH /api/products/:id/approve
+ * @desc    Approve a product
+ * @access  Admin or users with product_approval permission
+ */
+router.patch("/:id/approve", authMiddleware, checkPermission("product_approval"), approveProduct);
+
+/**
+ * @route   PATCH /api/products/:id/reject
+ * @desc    Reject a product with reason
+ * @access  Admin or users with product_approval permission
+ */
+router.patch("/:id/reject", authMiddleware, checkPermission("product_approval"), rejectProduct);
+
+/**
+ * @route   PATCH /api/products/:id/resubmit
+ * @desc    Resubmit a rejected product for approval
+ * @access  Product owner or admin
+ */
+router.patch("/:id/resubmit", authMiddleware, checkResubmitPermission, resubmitProduct);
+
+/**
+ * @route   GET /api/products/:id/approval-history
+ * @desc    Get approval history for a product
+ * @access  Admin or product owner
+ */
+router.get("/:id/approval-history", authMiddleware, checkOwnershipOrPermission("products", "read"), getApprovalHistory);
+
+/**
+ * @route   POST /api/products/migrate/approve-existing
+ * @desc    Auto-approve all existing products (run once for migration)
+ * @access  Admin only
+ */
+router.post("/migrate/approve-existing", authMiddleware, checkPermission("product_approval"), autoApproveExistingProducts);
 
 export default router;

@@ -116,6 +116,60 @@ const ProductSchema = new mongoose.Schema(
         },
       },
     },
+    // Approval Status
+    approvalStatus: {
+      type: String,
+      enum: ['pending', 'approved', 'rejected'],
+      default: 'pending',
+      index: true
+    },
+
+    // Current Approval Info (Latest)
+    approvalInfo: {
+      approvedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        default: null
+      },
+      approvedAt: {
+        type: Date,
+        default: null
+      },
+      rejectionReason: {
+        type: String,
+        default: null
+      },
+      comments: {
+        type: String,
+        default: null
+      }
+    },
+
+    // Approval History (Complete audit trail)
+    approvalHistory: [{
+      action: {
+        type: String,
+        enum: ['approved', 'rejected', 'resubmitted'],
+        required: true
+      },
+      performedBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+        required: true
+      },
+      performedAt: {
+        type: Date,
+        default: Date.now
+      },
+      reason: String,
+      comments: String
+    }],
+
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      required: false, // Optional for backward compatibility with existing products
+    },
   },
   { timestamps: true }
 );
@@ -129,6 +183,10 @@ ProductSchema.index({ childCategoryID: 1 });
 ProductSchema.index({ createdAt: -1 });
 ProductSchema.index({ parentCategoryID: 1, createdAt: -1 });
 ProductSchema.index({ childCategoryID: 1, createdAt: -1 });
+
+// Approval status indexes for efficient querying
+ProductSchema.index({ approvalStatus: 1, createdAt: -1 });
+ProductSchema.index({ approvalStatus: 1, parentCategoryID: 1 });
 
 // Pre-save hook to generate slug if not present (simple version)
 ProductSchema.pre("save", function (next) {

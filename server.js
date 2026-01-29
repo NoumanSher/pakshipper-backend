@@ -45,7 +45,7 @@ app.use("/assets", express.static(path.join(__dirname, "assets")));
 app.use(
   cors({
     origin: allowedOrigins,
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
   })
 );
 // ✅ Raw body parser for Stripe webhook

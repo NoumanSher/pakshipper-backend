@@ -57,6 +57,7 @@ export const createProduct = async (req, res) => {
       options,
       variants,
       seo,
+      createdBy: req.user.id || req.user._id, // Save the creator's ID
     });
     const savedProduct = await newProduct.save();
     await client.flushAll();
@@ -146,7 +147,15 @@ export const getProductBySlug = async (req, res) => {
       return res.status(200).json(JSON.parse(cached));
     }
 
-    const product = await Product.findOne({ "seo.slug": slug })
+    // Only return approved products for public API (or products without approval status for backward compatibility)
+    const product = await Product.findOne({
+      "seo.slug": slug,
+      $or: [
+        { approvalStatus: 'approved' },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null }
+      ]
+    })
       .select("-rating -reveiws")
       .populate("parentCategoryID", "name slug")
       .populate("childCategoryID", "name slug");
@@ -224,6 +233,8 @@ export const deleteProduct = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid Product ID" });
     }
+
+    // Ownership check is handled by middleware - proceed with deletion
     const product = await Product.findByIdAndDelete(id);
     if (!product) {
       return res.status(404).json({ message: "Product Not Found!" });
@@ -267,9 +278,39 @@ export const getAllProducts = async (req, res) => {
       mode = "full", // Default mode is full if not specified
       page = 1,
       limit = 8,
+      approvalStatus, // NEW: Filter by approval status
     } = req.query;
 
-    const query = {};
+    // Check if the request is from an admin/approver user
+    const isAdminRequest = req.user && (
+      req.user.role === 'admin' ||
+      req.user.permissions?.includes('product_approval') ||
+      req.user.permissions?.includes('read:products')
+    );
+
+
+    // Build approval status filter
+    let approvalFilter = {};
+
+    if (approvalStatus === 'all') {
+      // 'all' means show everything - no filter
+      approvalFilter = {};
+    } else if (approvalStatus) {
+      // Specific status requested (pending, approved, rejected)
+      approvalFilter = { approvalStatus };
+    } else if (!isAdminRequest) {
+      // Public users (no status specified): only show approved products or products without status (backward compatibility)
+      approvalFilter = {
+        $or: [
+          { approvalStatus: 'approved' },
+          { approvalStatus: { $exists: false } },
+          { approvalStatus: null }
+        ]
+      };
+    }
+    // If admin and no status specified, show all products (no filter)
+
+    const query = { ...approvalFilter };
 
     // 🔍 Resolve Slugs to IDs in parallel if provided
     const slugResolutions = [];
@@ -306,7 +347,7 @@ export const getAllProducts = async (req, res) => {
     const limitNumber = parseInt(limit, 10) || 8;
     const skip = (pageNumber - 1) * limitNumber;
 
-    // 🔑 Generate Redis cache key (including mode)
+    // 🔑 Generate Redis cache key (including mode and approval status)
     const cacheKey = `products::${new URLSearchParams({
       pID: query.parentCategoryID || "",
       cID: query.childCategoryID || "",
@@ -315,6 +356,8 @@ export const getAllProducts = async (req, res) => {
       m: mode,
       p: pageNumber,
       l: limitNumber,
+      as: approvalStatus || "",
+      adm: isAdminRequest ? "1" : "0",
     }).toString()}`;
 
     // 🧪 Cache check
@@ -578,7 +621,15 @@ export const getProductsByCategoryPriority = async (req, res) => {
       discount: 0
 
     };
-    const products = await Product.find({ parentCategoryID: resolvedParentID })
+    // Only show approved products on public API (or products without approval status for backward compatibility)
+    const products = await Product.find({
+      parentCategoryID: resolvedParentID,
+      $or: [
+        { approvalStatus: 'approved' },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null }
+      ]
+    })
       .select(projection)
       .populate("parentCategoryID", "name slug")
       .populate("childCategoryID", "name slug")
@@ -626,6 +677,7 @@ export const getProductsByCategoryPriority = async (req, res) => {
 export const updateProduct = async (req, res) => {
   try {
     const { id } = req.params;
+    const userId = req.user?._id || req.user?.id;
 
     // Validate if the ID is a valid MongoDB ObjectId
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -652,27 +704,49 @@ export const updateProduct = async (req, res) => {
       seo,
     } = req.body;
 
-    // Find the product and update it
+    // First, get the current product to check approval status
+    const currentProduct = await Product.findById(id);
+    if (!currentProduct) {
+      return res.status(404).json({ message: "Product Not Found" });
+    }
+
+    // Build update object
+    const updateData = {
+      productName,
+      parentCategoryID,
+      childCategoryID,
+      description,
+      isVariant,
+      salePrice,
+      sku,
+      costPrice,
+      isLimited,
+      stock,
+      discount,
+      isNew,
+      images,
+      options,
+      variants,
+      seo,
+    };
+
+    // Auto-resubmit: If product was rejected and is being edited, change status to pending
+    if (currentProduct.approvalStatus === 'rejected') {
+      updateData.approvalStatus = 'pending';
+      updateData.$push = {
+        approvalHistory: {
+          action: 'resubmitted',
+          performedBy: userId,
+          performedAt: new Date(),
+          comments: 'Product edited and auto-resubmitted for approval'
+        }
+      };
+    }
+
+    // Ownership check is handled by middleware - proceed with update
     const updatedProduct = await Product.findByIdAndUpdate(
       id,
-      {
-        productName,
-        parentCategoryID,
-        childCategoryID,
-        description,
-        isVariant,
-        salePrice,
-        sku,
-        costPrice,
-        isLimited,
-        stock,
-        discount,
-        isNew,
-        images,
-        options,
-        variants,
-        seo,
-      },
+      updateData,
       { new: true, runValidators: true } // Return the updated product and enforce schema validation
     );
 
@@ -682,9 +756,14 @@ export const updateProduct = async (req, res) => {
     }
     await client.flushAll();
 
+    const responseMessage = currentProduct.approvalStatus === 'rejected'
+      ? "Product Updated Successfully and resubmitted for approval"
+      : "Product Updated Successfully";
+
     res.status(200).json({
-      message: "Product Updated Successfully",
+      message: responseMessage,
       data: updatedProduct,
+      resubmitted: currentProduct.approvalStatus === 'rejected'
     });
   } catch (error) {
     console.error("Error updating product:", error);
@@ -693,6 +772,7 @@ export const updateProduct = async (req, res) => {
       .json({ message: "Error Updating Product", error: error.message });
   }
 };
+
 export const getLimitedProducts = async (req, res) => {
   try {
     const cacheKey = "products::limited";
@@ -703,7 +783,15 @@ export const getLimitedProducts = async (req, res) => {
       return res.status(200).json(JSON.parse(cached));
     }
     // Query to find all products with isLimited = true
-    const limitedProducts = await Product.find({ isLimited: true })
+    // Only show approved products on public API (or products without approval status for backward compatibility)
+    const limitedProducts = await Product.find({
+      isLimited: true,
+      $or: [
+        { approvalStatus: 'approved' },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null }
+      ]
+    })
       .select({
         costPrice: 0,
         images: { $slice: 1 }
