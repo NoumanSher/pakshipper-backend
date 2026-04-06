@@ -1,4 +1,11 @@
 import mongoose from "mongoose";
+import dns from "dns";
+
+// Override default DNS servers to use Google's DNS, to bypass local network DNS timeouts
+dns.setServers([
+  "8.8.8.8",
+  "8.8.4.4",
+]);
 
 /**
  * @function ConnectDataBase

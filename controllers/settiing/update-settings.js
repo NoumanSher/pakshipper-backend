@@ -11,9 +11,9 @@ import Settings from "../../models/settings.js";
 export const updateSettings = async (req, res) => {
     try {
         const updatedSettings = await Settings.findOneAndUpdate(
-            {}, // Empty filter to update the first (and only) settings document
+            {},
             req.body,
-            { new: true, upsert: true } // `upsert` creates if not found
+            { new: true, upsert: true, runValidators: true }
         );
         res.status(200).json({ message: "Settings updated", data: updatedSettings });
     } catch (error) {

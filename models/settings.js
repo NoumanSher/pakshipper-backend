@@ -5,6 +5,7 @@ import validator from "validator";
 const bannerImageSchema = new mongoose.Schema({
     img: { type: String, required: true },
     altText: { type: String, required: true },
+    link: { type: String },
     orderNumber: { type: Number, required: true }
 });
 
