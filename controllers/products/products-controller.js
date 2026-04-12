@@ -397,7 +397,7 @@ export const getAllProducts = async (req, res) => {
         .select(projection)
         .populate("parentCategoryID", "name")
         .populate("childCategoryID", "name")
-        .sort({ createdAt: -1 })
+        .sort({ updatedAt: 1 })
         .skip(skip)
         .limit(limitNumber)
         .lean()
@@ -633,6 +633,7 @@ export const getProductsByCategoryPriority = async (req, res) => {
       .select(projection)
       .populate("parentCategoryID", "name slug")
       .populate("childCategoryID", "name slug")
+      .sort({ updatedAt: 1 })
       .lean();
 
     if (products.length === 0) {
@@ -798,6 +799,7 @@ export const getLimitedProducts = async (req, res) => {
       })
       .populate("parentCategoryID", "name")
       .populate("childCategoryID", "name")
+      .sort({ updatedAt: 1 })
       .lean();
 
     if (limitedProducts.length === 0) {
