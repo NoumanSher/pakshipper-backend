@@ -8,10 +8,10 @@ import ChildCategory from "../../models/child-categories.js";
 import Review from "../../models/Review.js";
 
 let commonProjection = {
-  parentCategoryID: 0,
-  childCategoryID: 0,
-  parentCategoryName: 0,
-  childCategoryName: 0,
+  // parentCategoryID: 0,
+  // childCategoryID: 0,
+  // parentCategoryName: 0,
+  // childCategoryName: 0,
   images: { $slice: 1 },
   costPrice: 0,
   description: 0,
@@ -379,7 +379,9 @@ export const getAllProducts = async (req, res) => {
         description: 0,
         variants: 0,
         discount: 0,
-
+        approvalStatus: 0,
+        approvalInfo: 0,
+        approvalHistory: 0,
       };
     } else if (mode === "admin") {
       projection = {
