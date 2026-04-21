@@ -1,4 +1,5 @@
 import ChildCategories from "../../../models/child-categories.js";
+import client from "../../../config/redis/redisClient.js";
 
 /**
  * @route   POST /api/categories/create-child-category
@@ -28,6 +29,14 @@ export const createChildCategory = async (req, res) => {
       parentCategory,
     });
     await childCategory.save();
+
+    // 🧹 Flush Redis cache
+    try {
+      await client.flushAll();
+      console.log("✅ Redis cache flushed after child category creation");
+    } catch (cacheError) {
+      console.error("⚠️ Error flushing Redis cache:", cacheError.message);
+    }
 
     res
       .status(201)

@@ -153,6 +153,8 @@ export const createPostOrder = async (req, res) => {
 
       orderItems.push({
         productId,
+        productName: product.productName,
+        productImage: product.images?.[0]?.src || null,
         variantId,
         price,
         quantity,
@@ -353,15 +355,16 @@ export const userAllOrders = async (req, res) => {
         phone: order.userId?.mobilePhone || "N/A",
       },
       items: order.items.map((item) => ({
-        productId: item.productId._id,
-        product: item.productId.productName,
-        variant: item.productId.variants?.find(
+        productId: item.productId?._id || item.productId,
+        product: item.productName || item.productId?.productName || "Deleted Product",
+        variant: item.productId?.variants?.find(
           (v) => v._id.toString() === item.variantId?.toString()
-        ),
+        ) || (item.variantId ? { _id: item.variantId, name: "Unknown Variant" } : null),
 
         price: item.price,
         quantity: item.quantity,
         lineTotal: item.lineTotal,
+        image: item.productImage || (item.productId?.images && item.productId.images[0]?.src) || null,
       })),
       orderDetails: {
         totalPrice: order.total,
@@ -463,14 +466,15 @@ export const AllOrders = async (req, res) => {
         phone: order.userId?.mobilePhone || "N/A",
       },
       items: order.items.map((item) => ({
-        productId: item.productId._id,
-        product: item.productId.productName,
-        variant: item.productId.variants?.find(
+        productId: item.productId?._id || item.productId,
+        product: item.productName || item.productId?.productName || "Deleted Product",
+        variant: item.productId?.variants?.find(
           (v) => v._id.toString() === item.variantId?.toString()
-        ),
+        ) || (item.variantId ? { _id: item.variantId, name: "Unknown Variant" } : null),
         price: item.price,
         quantity: item.quantity,
         lineTotal: item.lineTotal,
+        image: item.productImage || (item.productId?.images && item.productId.images[0]?.src) || null,
       })),
       totalPrice: order.totalPrice,
       subTotal: order.subTotal,
@@ -582,16 +586,17 @@ export const searchOrderNoOrders = async (req, res) => {
         phone: orderNoOrder.userId?.mobilePhone || "N/A",
       },
       items: orderNoOrder.items.map((item) => {
-        const variant = item.productId.variants?.find(
+        const variant = item.productId?.variants?.find(
           (v) => v._id.toString() === item.variantId?.toString()
-        );
+        ) || (item.variantId ? { _id: item.variantId, name: "Unknown Variant" } : null);
         return {
-          productId: item.productId._id,
-          product: item.productId.productName,
+          productId: item.productId?._id || item.productId,
+          product: item.productName || item.productId?.productName || "Deleted Product",
           variant,
           price: item.price,
           quantity: item.quantity,
           lineTotal: item.lineTotal,
+          image: item.productImage || (item.productId?.images && item.productId.images[0]?.src) || null,
         };
       }),
       totalPrice: orderNoOrder.totalPrice,

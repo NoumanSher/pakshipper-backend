@@ -27,6 +27,14 @@ const postOrderSchema = new mongoose.Schema(
         ref: "Product",
         required: true,
       },
+      productName: {
+        type: String,
+        // Optional for backward compatibility, will be populated for new orders
+      },
+      productImage: {
+        type: String,
+        // Snapshot of the thumbnail image
+      },
       variantId: {
         type: mongoose.Schema.Types.ObjectId,
       },

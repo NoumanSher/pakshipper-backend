@@ -1,4 +1,5 @@
 import ParentCategories from "../../../models/categories.js";
+import client from "../../../config/redis/redisClient.js";
 
 /**
  * @route   POST /api/categories/create-parent-category
@@ -27,6 +28,14 @@ export const createParentCategory = async (req, res) => {
     // Create and save the new parent category
     const newCategory = new ParentCategories({ name, slug, description });
     await newCategory.save();
+
+    // 🧹 Flush Redis cache
+    try {
+      await client.flushAll();
+      console.log("✅ Redis cache flushed after parent category creation");
+    } catch (cacheError) {
+      console.error("⚠️ Error flushing Redis cache:", cacheError.message);
+    }
 
     res.status(201).json({
       message: "Parent Category created successfully",

@@ -170,6 +170,11 @@ const ProductSchema = new mongoose.Schema(
       ref: "User",
       required: false, // Optional for backward compatibility with existing products
     },
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
   },
   { timestamps: true }
 );

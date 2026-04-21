@@ -6,6 +6,8 @@ import { adminConfig } from "../../utils/cloudinaryAdmin.js";
 import ParentCategory from "../../models/categories.js";
 import ChildCategory from "../../models/child-categories.js";
 import Review from "../../models/Review.js";
+import PostOrder from "../../models/post-order.js";
+import UserCart from "../../models/UserCart.js";
 
 let commonProjection = {
   // parentCategoryID: 0,
@@ -150,6 +152,7 @@ export const getProductBySlug = async (req, res) => {
     // Only return approved products for public API (or products without approval status for backward compatibility)
     const product = await Product.findOne({
       "seo.slug": slug,
+      isDeleted: { $ne: true },
       $or: [
         { approvalStatus: 'approved' },
         { approvalStatus: { $exists: false } },
@@ -229,42 +232,79 @@ export const getProductBySlug = async (req, res) => {
 export const deleteProduct = async (req, res) => {
   try {
     const { id } = req.params;
+    const { mode } = req.query; // 'soft' or 'hard'
+
     // Validate the ID
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid Product ID" });
     }
 
-    // Ownership check is handled by middleware - proceed with deletion
-    const product = await Product.findByIdAndDelete(id);
-    if (!product) {
-      return res.status(404).json({ message: "Product Not Found!" });
+    // Check for dependencies
+    const [orderCount, reviewCount, cartCount] = await Promise.all([
+      PostOrder.countDocuments({ "items.productId": id }),
+      Review.countDocuments({ productId: id }),
+      UserCart.countDocuments({ productId: id }),
+    ]);
+
+    const hasDependencies = orderCount > 0 || reviewCount > 0 || cartCount > 0;
+
+    // If dependencies exist and mode is not 'soft', block deletion
+    if (hasDependencies && mode !== "soft") {
+      const dependencyMessages = [];
+      if (orderCount > 0) dependencyMessages.push(`${orderCount} order(s)`);
+      if (reviewCount > 0) dependencyMessages.push(`${reviewCount} review(s)`);
+      if (cartCount > 0) dependencyMessages.push(`${cartCount} cart item(s)`);
+
+      return res.status(400).json({
+        message: `This product is linked to ${dependencyMessages.join(", ")}. It cannot be directly deleted. Please Archive (Soft Delete) it instead to preserve history.`,
+        dependencies: { orderCount, reviewCount, cartCount },
+        canSoftDelete: true
+      });
     }
 
-    // Delete associated images from Cloudinary
-    if (product.images && product.images.length > 0) {
-      const publicIds = product.images
-        .filter((img) => img.publicId)
-        .map((img) => img.publicId);
+    let product;
+    if (mode === "soft" || hasDependencies) {
+      // Soft Delete / Archive
+      product = await Product.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
+      if (!product) {
+        return res.status(404).json({ message: "Product Not Found!" });
+      }
+      console.log(`✅ Product ${id} soft-deleted/archived.`);
+    } else {
+      // Hard Delete (only if no dependencies and not explicitly soft)
+      product = await Product.findByIdAndDelete(id);
+      if (!product) {
+        return res.status(404).json({ message: "Product Not Found!" });
+      }
 
-      if (publicIds.length > 0) {
-        try {
-          await cloudinary.api.delete_resources(publicIds, adminConfig);
-          console.log(`✅ Deleted ${publicIds.length} images from Cloudinary`);
-        } catch (cloudinaryError) {
-          console.error("⚠️ Error deleting images from Cloudinary:", cloudinaryError.message);
-          // Continue with product deletion even if Cloudinary deletion fails
+      // Delete associated images from Cloudinary only on hard delete
+      if (product.images && product.images.length > 0) {
+        const publicIds = product.images
+          .filter((img) => img.publicId)
+          .map((img) => img.publicId);
+
+        if (publicIds.length > 0) {
+          try {
+            await cloudinary.api.delete_resources(publicIds, adminConfig);
+            console.log(`✅ Deleted ${publicIds.length} images from Cloudinary`);
+          } catch (cloudinaryError) {
+            console.error("⚠️ Error deleting images from Cloudinary:", cloudinaryError.message);
+          }
         }
       }
+      console.log(`✅ Product ${id} permanently deleted.`);
     }
 
     await client.flushAll();
 
     res.status(200).json({
-      message: "Product Deleted Successfully!",
-      deletedImagesCount: product.images ? product.images.length : 0
+      message: mode === "soft" || hasDependencies ? "Product Archived Successfully!" : "Product Permanently Deleted!",
+      isDeleted: true,
+      mode: mode === "soft" || hasDependencies ? "soft" : "hard"
     });
   } catch (error) {
-    res.status(500).json({ message: "Error Deleting Product", error });
+    console.error("Error in deleteProduct:", error);
+    res.status(500).json({ message: "Error Deleting Product", error: error.message });
   }
 };
 
@@ -310,7 +350,11 @@ export const getAllProducts = async (req, res) => {
     }
     // If admin and no status specified, show all products (no filter)
 
-    const query = { ...approvalFilter };
+    // If archived status is requested, only show deleted products regardless of approval status
+    // Otherwise, show non-deleted products filtered by approval status
+    const query = approvalStatus === 'archived'
+      ? { isDeleted: true }
+      : { ...approvalFilter, isDeleted: { $ne: true } };
 
     // 🔍 Resolve Slugs to IDs in parallel if provided
     const slugResolutions = [];
@@ -319,7 +363,7 @@ export const getAllProducts = async (req, res) => {
       slugResolutions.push(
         ParentCategory.findOne({ slug: parentCategorySlug }).lean().then(cat => {
           if (cat) query.parentCategoryID = cat._id;
-          else return { error: "Parent Category not found by slug" };
+          else return { error: `Parent Category with slug '${parentCategorySlug}' not found` };
         })
       );
     } else if (parentCategoryID) {
@@ -330,7 +374,7 @@ export const getAllProducts = async (req, res) => {
       slugResolutions.push(
         ChildCategory.findOne({ slug: childCategorySlug }).lean().then(cat => {
           if (cat) query.childCategoryID = cat._id;
-          else return { error: "Child Category not found by slug" };
+          else return { error: `Child Category with slug '${childCategorySlug}' not found` };
         })
       );
     } else if (childCategoryID) {
@@ -574,7 +618,7 @@ export const getProductsByCategoryPriority = async (req, res) => {
       slugResolutions.push(
         ParentCategory.findOne({ slug: parentCategorySlug }).lean().then(cat => {
           if (cat) resolvedParentID = cat._id.toString();
-          else return { error: "Parent Category not found by slug" };
+          else return { error: `Parent Category with slug '${parentCategorySlug}' not found` };
         })
       );
     }
@@ -583,7 +627,7 @@ export const getProductsByCategoryPriority = async (req, res) => {
       slugResolutions.push(
         ChildCategory.findOne({ slug: childCategorySlug }).lean().then(cat => {
           if (cat) resolvedChildID = cat._id.toString();
-          else return { error: "Child Category not found by slug" };
+          else return { error: `Child Category with slug '${childCategorySlug}' not found` };
         })
       );
     }
@@ -626,6 +670,7 @@ export const getProductsByCategoryPriority = async (req, res) => {
     // Only show approved products on public API (or products without approval status for backward compatibility)
     const products = await Product.find({
       parentCategoryID: resolvedParentID,
+      isDeleted: { $ne: true },
       $or: [
         { approvalStatus: 'approved' },
         { approvalStatus: { $exists: false } },
@@ -705,6 +750,7 @@ export const updateProduct = async (req, res) => {
       options,
       variants,
       seo,
+      isDeleted,
     } = req.body;
 
     // First, get the current product to check approval status
@@ -731,6 +777,7 @@ export const updateProduct = async (req, res) => {
       options,
       variants,
       seo,
+      isDeleted,
     };
 
     // Auto-resubmit: If product was rejected and is being edited, change status to pending
@@ -789,6 +836,7 @@ export const getLimitedProducts = async (req, res) => {
     // Only show approved products on public API (or products without approval status for backward compatibility)
     const limitedProducts = await Product.find({
       isLimited: true,
+      isDeleted: { $ne: true },
       $or: [
         { approvalStatus: 'approved' },
         { approvalStatus: { $exists: false } },

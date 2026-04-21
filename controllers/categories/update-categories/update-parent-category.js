@@ -1,4 +1,5 @@
 import ParentCategories from "../../../models/categories.js";
+import client from "../../../config/redis/redisClient.js";
 
 /**
  * @route   PUT /api/categories/parent/:id
@@ -28,6 +29,14 @@ export const updateParentCategory = async (req, res) => {
 
     if (!updatedCategory) {
       return res.status(404).json({ message: "Category not found" });
+    }
+
+    // 🧹 Flush Redis cache
+    try {
+      await client.flushAll();
+      console.log("✅ Redis cache flushed after parent category update");
+    } catch (cacheError) {
+      console.error("⚠️ Error flushing Redis cache:", cacheError.message);
     }
 
     res.status(200).json({
