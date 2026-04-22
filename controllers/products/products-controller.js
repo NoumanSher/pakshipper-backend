@@ -80,16 +80,30 @@ export const getProductById = async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid Product ID" });
     }
-    const cacheKey = `product::${id}`;
+    // Check if the request is from an admin
+    const isAdminRequest = req.user && (
+      req.user.role === 'admin' ||
+      req.user.permissions?.includes('product_approval') ||
+      req.user.permissions?.includes('read:products')
+    );
+
+    const cacheKey = isAdminRequest ? `product:admin:${id}` : `product::${id}`;
 
     // 🔍 Check Redis cache
     const cached = await client.get(cacheKey);
     if (cached) {
-      console.log("✅ Cache hit (by ID)");
+      console.log(`✅ Cache hit (${isAdminRequest ? 'Admin' : 'Public'})`);
       return res.status(200).json(JSON.parse(cached));
     }
 
-    const product = await Product.findById(id)
+    let query = Product.findById(id);
+
+    // Only exclude costPrice for non-admins
+    if (!isAdminRequest) {
+      query = query.select("-costPrice");
+    }
+
+    const product = await query
       .populate("parentCategoryID", "name slug")
       .populate("childCategoryID", "name slug");
     if (!product) {
@@ -159,7 +173,7 @@ export const getProductBySlug = async (req, res) => {
         { approvalStatus: null }
       ]
     })
-      .select("-rating -reveiws")
+      .select("-rating -reveiws -costPrice")
       .populate("parentCategoryID", "name slug")
       .populate("childCategoryID", "name slug");
 
@@ -422,7 +436,7 @@ export const getAllProducts = async (req, res) => {
         sku: 0,
         description: 0,
         variants: 0,
-        discount: 0,
+        // discount: 0, // Enabled discount visibility for storefront
         approvalStatus: 0,
         approvalInfo: 0,
         approvalHistory: 0,
@@ -664,7 +678,7 @@ export const getProductsByCategoryPriority = async (req, res) => {
       sku: 0,
       description: 0,
       variants: 0,
-      discount: 0
+      // discount: 0
 
     };
     // Only show approved products on public API (or products without approval status for backward compatibility)
