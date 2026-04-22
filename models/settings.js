@@ -9,6 +9,15 @@ const bannerImageSchema = new mongoose.Schema({
     orderNumber: { type: Number, required: true }
 });
 
+// Define a sub-schema for promotional cards
+const promoCardSchema = new mongoose.Schema({
+    img: { type: String, required: true },
+    title: { type: String, required: true },
+    subtitle: { type: String },
+    link: { type: String },
+    orderNumber: { type: Number, required: true }
+});
+
 const settingsSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
@@ -18,6 +27,7 @@ const settingsSchema = new mongoose.Schema(
     logo: { type: String, required: true },
     bannerImg: { type: String, required: true },
     bannerImages: { type: [bannerImageSchema], required: true }, // Array of bannerImageSchema
+    promoCards: { type: [promoCardSchema], default: [] }, // Array of promo cards
     twitterUrl: { type: String, required: [true, "Link Required"] },
     facebookUrl: { type: String, required: [true, "Link Required"] },
     instagramUrl: { type: String, required: [true, "Link Required"] },

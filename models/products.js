@@ -90,6 +90,7 @@ const ProductSchema = new mongoose.Schema(
     },
     discount: { type: Number, default: 0 },
     isNew: { type: Boolean, default: false },
+    isRecommended: { type: Boolean, default: false },
     isLimited: { type: Boolean, default: false },
     images: { type: [ImageSchema], default: [] },
     options: { type: [OptionSchema], default: [] },

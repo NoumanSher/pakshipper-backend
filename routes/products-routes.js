@@ -9,6 +9,7 @@ import {
   getProductBySlug,
   getProductsByCategoryPriority,
   updateProduct,
+  getRecommendedProducts,
 } from "../controllers/products/products-controller.js";
 import {
   approveProduct,
@@ -90,6 +91,13 @@ router.put("/update-product/:id", authMiddleware, checkOwnershipOrPermission("pr
  * @access  Public
  */
 router.get("/get-limited-products", getLimitedProducts);
+
+/**
+ * @route   GET /api/products/get-recommended-products
+ * @desc    Get recommended products
+ * @access  Public
+ */
+router.get("/get-recommended-products", getRecommendedProducts);
 
 // =============================================
 // PRODUCT APPROVAL ROUTES

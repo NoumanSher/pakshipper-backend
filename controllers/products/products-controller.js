@@ -37,6 +37,7 @@ export const createProduct = async (req, res) => {
       stock,
       discount,
       isNew,
+      isRecommended,
       images,
       options,
       variants,
@@ -55,6 +56,7 @@ export const createProduct = async (req, res) => {
       isLimited,
       discount,
       isNew,
+      isRecommended,
       images,
       options,
       variants,
@@ -759,6 +761,7 @@ export const updateProduct = async (req, res) => {
       stock,
       discount,
       isNew,
+      isRecommended,
       isLimited,
       images,
       options,
@@ -787,6 +790,7 @@ export const updateProduct = async (req, res) => {
       stock,
       discount,
       isNew,
+      isRecommended,
       images,
       options,
       variants,
@@ -896,6 +900,63 @@ export const getLimitedProducts = async (req, res) => {
     console.error("Error fetching limited products:", error);
     res.status(500).json({
       message: "Error Fetching Limited Products",
+      error: error.message,
+    });
+  }
+};
+
+export const getRecommendedProducts = async (req, res) => {
+  try {
+    const cacheKey = "products::recommended";
+    const cached = await client.get(cacheKey);
+    if (cached) {
+      console.log("✅ Cache hit (recommended)");
+      return res.status(200).json(JSON.parse(cached));
+    }
+    
+    const recommendedProducts = await Product.find({
+      isRecommended: true,
+      isDeleted: { $ne: true },
+      $or: [
+        { approvalStatus: 'approved' },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null }
+      ]
+    })
+      .select({
+        costPrice: 0,
+        images: { $slice: 1 }
+      })
+      .populate("parentCategoryID", "name")
+      .populate("childCategoryID", "name")
+      .sort({ updatedAt: -1 })
+      .limit(12)
+      .lean();
+
+    if (recommendedProducts.length === 0) {
+      return res.status(404).json({ message: "No Recommended Products Found" });
+    }
+
+    const formattedProducts = recommendedProducts.map((product) => ({
+      ...product,
+      parentCategoryID: product.parentCategoryID?._id,
+      childCategoryID: product.childCategoryID?._id,
+      parentCategoryName: product.parentCategoryID?.name || null,
+      childCategoryName: product.childCategoryID?.name || null,
+    }));
+    
+    const response = {
+      message: "Recommended Products Retrieved Successfully",
+      data: formattedProducts,
+    };
+
+    await client.setEx(cacheKey, 300, JSON.stringify(response));
+
+    res.status(200).json(response);
+  } catch (error) {
+    console.error("Error fetching recommended products:", error);
+    res.status(500).json({
+      message: "Error Fetching Recommended Products",
       error: error.message,
     });
   }
