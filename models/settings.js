@@ -18,6 +18,17 @@ const promoCardSchema = new mongoose.Schema({
     orderNumber: { type: Number, required: true }
 });
 
+// Define sub-schemas for footer links
+const footerLinkItemSchema = new mongoose.Schema({
+    name: { type: String, required: true },
+    url: { type: String } // Not required in case it's an action link like "My Account"
+});
+
+const footerSectionSchema = new mongoose.Schema({
+    title: { type: String, required: true },
+    items: { type: [footerLinkItemSchema], default: [] }
+});
+
 const settingsSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
@@ -26,13 +37,17 @@ const settingsSchema = new mongoose.Schema(
     mobile: { type: String, required: true },
     logo: { type: String, required: true },
     bannerImg: { type: String, required: true },
+    bannerImgLink: { type: String, default: "" },
     bannerImages: { type: [bannerImageSchema], required: true }, // Array of bannerImageSchema
     promoCards: { type: [promoCardSchema], default: [] }, // Array of promo cards
+    footerLinks: { type: [footerSectionSchema], default: [] }, // Array of footer link columns
     twitterUrl: { type: String, required: [true, "Link Required"] },
     facebookUrl: { type: String, required: [true, "Link Required"] },
     instagramUrl: { type: String, required: [true, "Link Required"] },
     pinterestUrl: { type: String, required: [true, "Link Required"] },
     youtubeUrl: { type: String, required: [true, "Link Required"] },
+    privacyPolicy: { type: String, default: "" },
+    termsOfService: { type: String, default: "" },
     email: {
       type: String,
       required: [true, "Email Required"],
