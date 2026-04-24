@@ -37,7 +37,6 @@ export const createProduct = async (req, res) => {
       stock,
       discount,
       isNew,
-      isRecommended,
       images,
       options,
       variants,
@@ -56,7 +55,6 @@ export const createProduct = async (req, res) => {
       isLimited,
       discount,
       isNew,
-      isRecommended,
       images,
       options,
       variants,
@@ -70,6 +68,15 @@ export const createProduct = async (req, res) => {
       .status(201)
       .json({ message: "Product Added SuccesFully!", savedProduct });
   } catch (error) {
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      const message = field.includes("slug")
+        ? "A product with this URL slug already exists. Please choose a different slug."
+        : field.includes("sku")
+          ? "A product with this SKU already exists. Please choose a different SKU."
+          : `Duplicate value for ${field}. Please use a unique value.`;
+      return res.status(400).json({ message });
+    }
     res.status(500).json({ message: "Error Creating Product", error });
   }
 };
@@ -761,7 +768,6 @@ export const updateProduct = async (req, res) => {
       stock,
       discount,
       isNew,
-      isRecommended,
       isLimited,
       images,
       options,
@@ -790,7 +796,6 @@ export const updateProduct = async (req, res) => {
       stock,
       discount,
       isNew,
-      isRecommended,
       images,
       options,
       variants,
@@ -835,6 +840,15 @@ export const updateProduct = async (req, res) => {
     });
   } catch (error) {
     console.error("Error updating product:", error);
+    if (error.code === 11000) {
+      const field = Object.keys(error.keyPattern)[0];
+      const message = field.includes("slug")
+        ? "A product with this URL slug already exists. Please choose a different slug."
+        : field.includes("sku")
+          ? "A product with this SKU already exists. Please choose a different SKU."
+          : `Duplicate value for ${field}. Please use a unique value.`;
+      return res.status(400).json({ message });
+    }
     res
       .status(500)
       .json({ message: "Error Updating Product", error: error.message });
@@ -907,22 +921,54 @@ export const getLimitedProducts = async (req, res) => {
 
 export const getRecommendedProducts = async (req, res) => {
   try {
-    const cacheKey = "products::recommended";
+    const { categoryId } = req.query;
+    const cacheKey = categoryId ? `products::recommended::${categoryId}` : "products::recommended";
     const cached = await client.get(cacheKey);
     if (cached) {
       console.log("✅ Cache hit (recommended)");
       return res.status(200).json(JSON.parse(cached));
     }
-    
-    const recommendedProducts = await Product.find({
-      isRecommended: true,
+
+    // Base query: product is active and approved
+    let query = {
       isDeleted: { $ne: true },
       $or: [
         { approvalStatus: 'approved' },
         { approvalStatus: { $exists: false } },
         { approvalStatus: null }
       ]
-    })
+    };
+
+    // If categoryId is provided, check for category-level recommendation rules
+    if (categoryId) {
+      const category = await ParentCategory.findById(categoryId).lean();
+
+      if (category && category.recommendedCategories && category.recommendedCategories.length > 0) {
+        // If category has recommended categories (cross-sell), fetch products from those categories
+        query.parentCategoryID = { $in: category.recommendedCategories };
+      } else {
+        // If no rules, return empty (no fallback to product-level tags as they are removed)
+        const response = { message: "No recommendation rules for this category", data: [] };
+        await client.setEx(cacheKey, 300, JSON.stringify(response));
+        return res.status(200).json(response);
+      }
+    } else {
+      // Global: Fetch products from any category that has cross-sell rules
+      const categoriesWithRules = await ParentCategory.find({ 
+        recommendedCategories: { $exists: true, $not: { $size: 0 } } 
+      }).select("_id").lean();
+      
+      if (categoriesWithRules.length > 0) {
+        const categoryIds = categoriesWithRules.map(c => c._id);
+        query.parentCategoryID = { $in: categoryIds };
+      } else {
+        const response = { message: "No recommendations available", data: [] };
+        await client.setEx(cacheKey, 300, JSON.stringify(response));
+        return res.status(200).json(response);
+      }
+    }
+
+    const recommendedProducts = await Product.find(query)
       .select({
         costPrice: 0,
         images: { $slice: 1 }
@@ -934,7 +980,9 @@ export const getRecommendedProducts = async (req, res) => {
       .lean();
 
     if (recommendedProducts.length === 0) {
-      return res.status(404).json({ message: "No Recommended Products Found" });
+      const response = { message: "No Recommended Products Found", data: [] };
+      await client.setEx(cacheKey, 300, JSON.stringify(response));
+      return res.status(200).json(response);
     }
 
     const formattedProducts = recommendedProducts.map((product) => ({
@@ -944,7 +992,7 @@ export const getRecommendedProducts = async (req, res) => {
       parentCategoryName: product.parentCategoryID?.name || null,
       childCategoryName: product.childCategoryID?.name || null,
     }));
-    
+
     const response = {
       message: "Recommended Products Retrieved Successfully",
       data: formattedProducts,
@@ -959,5 +1007,150 @@ export const getRecommendedProducts = async (req, res) => {
       message: "Error Fetching Recommended Products",
       error: error.message,
     });
+  }
+};
+
+/**
+ * Unified endpoint for Related and Recommended products.
+ * Returns both in a single request to optimize storefront performance.
+ */
+export const getProductRelatedInfo = async (req, res) => {
+  try {
+    const {
+      parentCategorySlug,
+      childCategorySlug,
+      categoryId,
+      productId // To exclude the current product
+    } = req.query;
+
+    const cacheKey = `products-related-info::${new URLSearchParams({
+      pS: parentCategorySlug || "",
+      cS: childCategorySlug || "",
+      cID: categoryId || "",
+      pID: productId || ""
+    }).toString()}`;
+
+    const cached = await client.get(cacheKey);
+    if (cached) {
+      console.log("✅ Cache hit (related-info)");
+      return res.status(200).json(JSON.parse(cached));
+    }
+
+    // 1. Resolve IDs for Related Products
+    let resolvedParentID = null;
+    let resolvedChildID = null;
+
+    const slugResolutions = [];
+    if (parentCategorySlug) {
+      slugResolutions.push(
+        ParentCategory.findOne({ slug: parentCategorySlug }).lean().then(cat => {
+          if (cat) resolvedParentID = cat._id.toString();
+        })
+      );
+    }
+    if (childCategorySlug) {
+      slugResolutions.push(
+        ChildCategory.findOne({ slug: childCategorySlug }).lean().then(cat => {
+          if (cat) resolvedChildID = cat._id.toString();
+        })
+      );
+    }
+    await Promise.all(slugResolutions);
+
+    // Common query parts
+    const approvalFilter = {
+      isDeleted: { $ne: true },
+      $or: [
+        { approvalStatus: 'approved' },
+        { approvalStatus: { $exists: false } },
+        { approvalStatus: null }
+      ]
+    };
+
+    const projection = {
+      ...commonProjection,
+      sku: 0,
+      description: 0,
+      variants: 0,
+    };
+
+    // 2. Fetch Related and Recommended in Parallel
+    const [relatedResults, recommendedResults] = await Promise.all([
+      // Fetch Related
+      resolvedParentID ? Product.find({
+        ...approvalFilter,
+        parentCategoryID: resolvedParentID,
+        _id: { $ne: productId }
+      })
+      .select(projection)
+      .populate("parentCategoryID", "name slug")
+      .populate("childCategoryID", "name slug")
+      .sort({ updatedAt: 1 })
+      .lean() : Promise.resolve([]),
+
+      // Fetch Recommended
+      (async () => {
+        let recQuery = { ...approvalFilter, _id: { $ne: productId } };
+        let effectiveCategoryId = categoryId;
+        
+        // If we don't have categoryId but have resolvedParentID, use it
+        if (!effectiveCategoryId && resolvedParentID) effectiveCategoryId = resolvedParentID;
+
+        if (effectiveCategoryId) {
+          const category = await ParentCategory.findById(effectiveCategoryId).lean();
+          if (category && category.recommendedCategories && category.recommendedCategories.length > 0) {
+            recQuery.parentCategoryID = { $in: category.recommendedCategories };
+          } else {
+             // No category-level recommendations found
+             return [];
+          }
+        } else {
+          // Fallback to global recommendations if no category ID
+          const categoriesWithRules = await ParentCategory.find({ 
+            recommendedCategories: { $exists: true, $not: { $size: 0 } } 
+          }).select("_id").lean();
+          
+          if (categoriesWithRules.length > 0) {
+            recQuery.parentCategoryID = { $in: categoriesWithRules.map(c => c._id) };
+          } else {
+            return [];
+          }
+        }
+
+        return Product.find(recQuery)
+          .select(projection)
+          .populate("parentCategoryID", "name slug")
+          .populate("childCategoryID", "name slug")
+          .sort({ updatedAt: -1 })
+          .limit(12)
+          .lean();
+      })()
+    ]);
+
+    // Format Related with Priority logic
+    const prioritizedRelated = [];
+    const otherRelated = [];
+    relatedResults.forEach((product) => {
+      if (product.childCategoryID?._id.toString() === resolvedChildID) {
+        prioritizedRelated.push(product);
+      } else {
+        otherRelated.push(product);
+      }
+    });
+
+    const response = {
+      message: "Product Related Info Retrieved Successfully",
+      data: {
+        related: [...prioritizedRelated, ...otherRelated],
+        recommended: recommendedResults
+      }
+    };
+
+    await client.setEx(cacheKey, 300, JSON.stringify(response));
+    res.status(200).json(response);
+
+  } catch (error) {
+    console.error("Error fetching product related info:", error);
+    res.status(500).json({ message: "Error Fetching Related Info", error: error.message });
   }
 };

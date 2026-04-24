@@ -10,6 +10,7 @@ import {
   getProductsByCategoryPriority,
   updateProduct,
   getRecommendedProducts,
+  getProductRelatedInfo,
 } from "../controllers/products/products-controller.js";
 import {
   approveProduct,
@@ -98,6 +99,12 @@ router.get("/get-limited-products", getLimitedProducts);
  * @access  Public
  */
 router.get("/get-recommended-products", getRecommendedProducts);
+/**
+ * @route   GET /api/products/get-product-related-info
+ * @desc    Get related and recommended products in one call
+ * @access  Public
+ */
+router.get("/get-product-related-info", getProductRelatedInfo);
 
 // =============================================
 // PRODUCT APPROVAL ROUTES

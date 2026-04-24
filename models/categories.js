@@ -17,6 +17,12 @@ const ParentCategoriesSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    recommendedCategories: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "ParentCategories",
+      },
+    ],
   },
   { timestamps: true }
 );

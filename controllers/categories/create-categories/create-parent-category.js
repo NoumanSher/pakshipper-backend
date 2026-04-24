@@ -12,7 +12,7 @@ import client from "../../../config/redis/redisClient.js";
  */
 export const createParentCategory = async (req, res) => {
   try {
-    const { name, slug, description } = req.body;
+    const { name, slug, description, recommendedCategories } = req.body;
 
     // Validate required fields
     if (!name || !slug) {
@@ -26,7 +26,7 @@ export const createParentCategory = async (req, res) => {
     }
 
     // Create and save the new parent category
-    const newCategory = new ParentCategories({ name, slug, description });
+    const newCategory = new ParentCategories({ name, slug, description, recommendedCategories });
     await newCategory.save();
 
     // 🧹 Flush Redis cache

@@ -90,7 +90,6 @@ const ProductSchema = new mongoose.Schema(
     },
     discount: { type: Number, default: 0 },
     isNew: { type: Boolean, default: false },
-    isRecommended: { type: Boolean, default: false },
     isLimited: { type: Boolean, default: false },
     images: { type: [ImageSchema], default: [] },
     options: { type: [OptionSchema], default: [] },
@@ -180,8 +179,8 @@ const ProductSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Add unique index for slug
-ProductSchema.index({ "seo.slug": 1 }, { unique: true });
+// Add unique index for slug (only for non-deleted products)
+ProductSchema.index({ "seo.slug": 1 }, { unique: true, partialFilterExpression: { isDeleted: false } });
 
 // Add indexes for optimized filtering and sorting
 ProductSchema.index({ parentCategoryID: 1 });

@@ -12,7 +12,7 @@ import client from "../../../config/redis/redisClient.js";
 export const updateParentCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, slug, description } = req.body;
+    const { name, slug, description, recommendedCategories } = req.body;
 
     // Check for existing category with the same slug (excluding the current one)
     const existingCategory = await ParentCategories.findOne({ slug });
@@ -23,7 +23,7 @@ export const updateParentCategory = async (req, res) => {
     // Update the category
     const updatedCategory = await ParentCategories.findByIdAndUpdate(
       id,
-      { name, slug, description },
+      { name, slug, description, recommendedCategories },
       { new: true }
     );
 
