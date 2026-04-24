@@ -526,100 +526,6 @@ export const getAllProducts = async (req, res) => {
   }
 };
 
-// export const getAllProductss = async (req, res) => {
-//   try {
-//     const {
-//       parentCategoryID,
-//       childCategoryID,
-//       page = 1,
-//       limit = 8,
-//       search = "", // <-- new search parameter
-//     } = req.query;
-
-//     // Build the query object
-//     const query = {};
-//     if (parentCategoryID) query.parentCategoryID = parentCategoryID;
-//     if (childCategoryID) query.childCategoryID = childCategoryID;
-//     if (search) {
-//       query.productName = { $regex: search, $options: "i" }; // case-insensitive partial match
-//     }
-
-//     const pageNumber = parseInt(page, 10);
-//     const limitNumber = parseInt(limit, 10);
-//     const skip = (pageNumber - 1) * limitNumber;
-
-//     // 🔑 Update cache key to include search
-//     const cacheKey = `products::${new URLSearchParams({
-//       parentCategoryID: parentCategoryID || "",
-//       childCategoryID: childCategoryID || "",
-//       page: String(page),
-//       limit: String(limit),
-//       search,
-//     }).toString()}`;
-
-//     const cached = await client.get(cacheKey);
-//     if (cached) {
-//       console.log("✅ Cache hit");
-//       return res.status(200).json(JSON.parse(cached));
-//     }
-
-//     const products = await Product.find(query)
-//       .populate("parentCategoryID", "name")
-//       .populate("childCategoryID", "name")
-//       .sort({ createdAt: -1 })
-//       .skip(skip)
-//       .limit(limitNumber)
-//       .lean();
-
-//     const totalProducts = await Product.countDocuments(query);
-//     const totalPages = Math.ceil(totalProducts / limitNumber);
-
-//     if (products.length === 0) {
-//       return res.status(200).json({
-//         message: "No Products Found",
-//         data: [],
-//       });
-//     }
-
-//     const productList = products.map((product) => ({
-//       _id: product._id,
-//       parentCategoryID: product.parentCategoryID._id,
-//       childCategoryID: product.childCategoryID?._id,
-//       productName: product.productName,
-//       description: product.description,
-//       salePrice: product.salePrice,
-//       stock: product.stock,
-//       discount: product.discount,
-//       sku: product.sku,
-//       isNew: product.isNew,
-//       images: product.images,
-//       options: product.options,
-//       variants: product.variants,
-//       isVariant: product.isVariant,
-//       seo: product.seo,
-//     }));
-
-//     const response = {
-//       message: "Products Retrieved Successfully",
-//       data: productList,
-//       pagination: {
-//         totalProducts,
-//         totalPages,
-//         currentPage: pageNumber,
-//         pageSize: limitNumber,
-//       },
-//     };
-
-//     await client.setEx(cacheKey, 300, JSON.stringify(response));
-//     res.status(200).json(response);
-//   } catch (error) {
-//     console.error("Error fetching products:", error);
-//     res.status(500).json({
-//       message: "Error Fetching Products",
-//       error: error.message,
-//     });
-//   }
-// };
 
 
 export const getProductsByCategoryPriority = async (req, res) => {
@@ -954,10 +860,10 @@ export const getRecommendedProducts = async (req, res) => {
       }
     } else {
       // Global: Fetch products from any category that has cross-sell rules
-      const categoriesWithRules = await ParentCategory.find({ 
-        recommendedCategories: { $exists: true, $not: { $size: 0 } } 
+      const categoriesWithRules = await ParentCategory.find({
+        recommendedCategories: { $exists: true, $not: { $size: 0 } }
       }).select("_id").lean();
-      
+
       if (categoriesWithRules.length > 0) {
         const categoryIds = categoriesWithRules.map(c => c._id);
         query.parentCategoryID = { $in: categoryIds };
@@ -1082,17 +988,17 @@ export const getProductRelatedInfo = async (req, res) => {
         parentCategoryID: resolvedParentID,
         _id: { $ne: productId }
       })
-      .select(projection)
-      .populate("parentCategoryID", "name slug")
-      .populate("childCategoryID", "name slug")
-      .sort({ updatedAt: 1 })
-      .lean() : Promise.resolve([]),
+        .select(projection)
+        .populate("parentCategoryID", "name slug")
+        .populate("childCategoryID", "name slug")
+        .sort({ updatedAt: 1 })
+        .lean() : Promise.resolve([]),
 
       // Fetch Recommended
       (async () => {
         let recQuery = { ...approvalFilter, _id: { $ne: productId } };
         let effectiveCategoryId = categoryId;
-        
+
         // If we don't have categoryId but have resolvedParentID, use it
         if (!effectiveCategoryId && resolvedParentID) effectiveCategoryId = resolvedParentID;
 
@@ -1101,15 +1007,15 @@ export const getProductRelatedInfo = async (req, res) => {
           if (category && category.recommendedCategories && category.recommendedCategories.length > 0) {
             recQuery.parentCategoryID = { $in: category.recommendedCategories };
           } else {
-             // No category-level recommendations found
-             return [];
+            // No category-level recommendations found
+            return [];
           }
         } else {
           // Fallback to global recommendations if no category ID
-          const categoriesWithRules = await ParentCategory.find({ 
-            recommendedCategories: { $exists: true, $not: { $size: 0 } } 
+          const categoriesWithRules = await ParentCategory.find({
+            recommendedCategories: { $exists: true, $not: { $size: 0 } }
           }).select("_id").lean();
-          
+
           if (categoriesWithRules.length > 0) {
             recQuery.parentCategoryID = { $in: categoriesWithRules.map(c => c._id) };
           } else {
