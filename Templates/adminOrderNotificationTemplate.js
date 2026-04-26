@@ -16,10 +16,10 @@ Customer Email: ${responsePostOrder.userId?.email || "N/A"}
 Customer Phone: ${responsePostOrder.userId?.mobilePhone || "N/A"}
 
 Items Ordered:
-${responsePostOrder.items
+${transformedResponse.items
       .map(
         (item, index) =>
-          `${index + 1}. ${item.productId?.productName || "Unknown Product"} ${item.variant ? `(Variant: ${item.variant.variantName})` : ""
+          `${index + 1}. ${item.product || "Unknown Product"} ${item.variant ? `(Variant: ${item.variant.name})` : ""
           }\n   Quantity: ${item.quantity}, Price: PKR ${item.price}, Line Total: PKR ${item.lineTotal
           }`
       )
@@ -66,11 +66,11 @@ Your Online Store`;
 
     <p><strong>Items Ordered:</strong></p>
     <ul>
-      ${responsePostOrder.items
+      ${transformedResponse.items
       .map(
         (item, index) =>
-          `<li>${index + 1}. <strong>${item.productId?.productName || "Unknown Product"
-          }</strong> ${item.variant ? `(Variant: ${item.variant.variantName})` : ""
+          `<li>${index + 1}. <strong>${item.product || "Unknown Product"
+          }</strong> ${item.variant ? `(Variant: ${item.variant.name})` : ""
           }<br>
             Quantity: ${item.quantity}, Price: PKR ${item.price}, Line Total: PKR ${item.lineTotal
           }
@@ -90,7 +90,6 @@ Your Online Store`;
       <li><strong>Payment Method:</strong> ${responsePostOrder.paymentMethod
     }</li>
       <li><strong>Payment Status:</strong> ${transformedResponse.orderDetails.paymentStatus
-    // responsePostOrder.paymentMethod
     }</li>
       <li><strong>Order Status:</strong> ${responsePostOrder.orderStatuses.length > 0
       ? responsePostOrder.orderStatuses[
