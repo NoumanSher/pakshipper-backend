@@ -1,4 +1,5 @@
-import ChildCategories from "../../../models/child-categories.js";
+import CategoryService from "../../../services/categoryService.js";
+import asyncHandler from "../../../middlewares/asyncHandler.js";
 
 /**
  * @route   GET /api/categories/all-child-categories
@@ -8,15 +9,11 @@ import ChildCategories from "../../../models/child-categories.js";
  * @param   {Object} res - Express response object
  * @returns {Object} JSON response with list of child categories or error
  */
-export const getAllChildCategories = async (req, res) => {
-  try {
-    const categories = await ChildCategories.find().sort({ createdAt: -1 });
+export const getAllChildCategories = asyncHandler(async (req, res) => {
+  const categories = await CategoryService.getAllChildCategories();
 
-    res.status(200).json({
-      message: "Successfully Fetched!",
-      categories: categories
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching Category", error });
-  }
-};
+  res.status(200).json({
+    message: "Successfully Fetched!",
+    categories
+  });
+});

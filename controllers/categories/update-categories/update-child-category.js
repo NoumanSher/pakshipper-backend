@@ -1,45 +1,26 @@
-import ChildCategories from "../../../models/child-categories.js";
-import client from "../../../config/redis/redisClient.js";
+import CategoryService from "../../../services/categoryService.js";
+import asyncHandler from "../../../middlewares/asyncHandler.js";
+import { z } from "zod";
+
+const updateChildCategorySchema = z.object({
+  name: z.string().min(1).optional(),
+  slug: z.string().min(1).optional(),
+  description: z.string().optional(),
+  parentCategory: z.string().min(1).optional(),
+});
 
 /**
  * @route   PUT /api/categories/child/:id
  * @desc    Update a child category by ID
  * @access  Admin (or as required)
  */
-export const updateChildCategory = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, slug, description } = req.body;
+export const updateChildCategory = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const validatedData = updateChildCategorySchema.parse(req.body);
+  const updatedCategory = await CategoryService.updateChildCategory(id, validatedData);
 
-    // Check if another category with the same slug exists
-    const existingCategory = await ChildCategories.findOne({ slug });
-    if (existingCategory && existingCategory._id.toString() !== id) {
-      return res.status(400).json({ message: "Slug already in use by another category" });
-    }
-
-    const updatedCategory = await ChildCategories.findByIdAndUpdate(
-      id,
-      { name, slug, description },
-      { new: true, runValidators: true }
-    );
-
-    if (!updatedCategory) {
-      return res.status(404).json({ message: "Child category not found" });
-    }
-
-    // 🧹 Flush Redis cache
-    try {
-      await client.flushAll();
-      console.log("✅ Redis cache flushed after child category update");
-    } catch (cacheError) {
-      console.error("⚠️ Error flushing Redis cache:", cacheError.message);
-    }
-
-    res.status(200).json({
-      message: "Category updated successfully",
-      category: updatedCategory,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Error updating category", error: error.message });
-  }
-};
+  res.status(200).json({
+    message: "Category updated successfully",
+    category: updatedCategory,
+  });
+});

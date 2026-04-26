@@ -1,5 +1,13 @@
-import ChildCategories from "../../../models/child-categories.js";
-import client from "../../../config/redis/redisClient.js";
+import CategoryService from "../../../services/categoryService.js";
+import asyncHandler from "../../../middlewares/asyncHandler.js";
+import { z } from "zod";
+
+const childCategorySchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  description: z.string().optional(),
+  parentCategory: z.string().min(1),
+});
 
 /**
  * @route   POST /api/categories/create-child-category
@@ -10,43 +18,12 @@ import client from "../../../config/redis/redisClient.js";
  * @param   {Object} res - Express response object
  * @returns {Object} JSON response with created child category or error message
  */
-export const createChildCategory = async (req, res) => {
-  try {
-    const { name, slug, description, parentCategory } = req.body;
+export const createChildCategory = asyncHandler(async (req, res) => {
+  const validatedData = childCategorySchema.parse(req.body);
+  const childCategory = await CategoryService.createChildCategory(validatedData);
 
-    // Validate required fields
-    if (!name || !slug || !parentCategory) {
-      return res
-        .status(400)
-        .json({ message: "Name, Slug, and Parent Category are required" });
-    }
-
-    // Create and save the child category
-    const childCategory = new ChildCategories({
-      name,
-      slug,
-      description,
-      parentCategory,
-    });
-    await childCategory.save();
-
-    // 🧹 Flush Redis cache
-    try {
-      await client.flushAll();
-      console.log("✅ Redis cache flushed after child category creation");
-    } catch (cacheError) {
-      console.error("⚠️ Error flushing Redis cache:", cacheError.message);
-    }
-
-    res
-      .status(201)
-      .json({
-        message: "Child Category created successfully",
-        category: childCategory,
-      });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ message: "Error creating Category", error });
-  }
-};
+  res.status(201).json({
+    message: "Child Category created successfully",
+    category: childCategory,
+  });
+});

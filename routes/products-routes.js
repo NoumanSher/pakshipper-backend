@@ -4,12 +4,9 @@ import {
   deleteProduct,
   getAllProducts,
   // getAllProductss,
-  getLimitedProducts,
   getProductById,
   getProductBySlug,
-  getProductsByCategoryPriority,
   updateProduct,
-  getRecommendedProducts,
   getProductRelatedInfo,
 } from "../controllers/products/products-controller.js";
 import {
@@ -60,13 +57,6 @@ router.delete("/delete-product/:id", authMiddleware, checkOwnershipOrPermission(
 
 
 /**
- * @route   GET /api/products/get-products-by-category-priority
- * @desc    Get products by category with priority ordering
- * @access  Public
- */
-router.get("/get-products-by-category-priority", getProductsByCategoryPriority);
-
-/**
  * @route   GET /api/products/get-all-products
  * @desc    Get all products
  * @access  Public
@@ -86,19 +76,6 @@ router.get("/get-all-products", getAllProducts);
  */
 router.put("/update-product/:id", authMiddleware, checkOwnershipOrPermission("products", "update"), updateProduct);
 
-/**
- * @route   GET /api/products/get-limited-products
- * @desc    Get a limited set of products (pagination or featured)
- * @access  Public
- */
-router.get("/get-limited-products", getLimitedProducts);
-
-/**
- * @route   GET /api/products/get-recommended-products
- * @desc    Get recommended products
- * @access  Public
- */
-router.get("/get-recommended-products", getRecommendedProducts);
 /**
  * @route   GET /api/products/get-product-related-info
  * @desc    Get related and recommended products in one call

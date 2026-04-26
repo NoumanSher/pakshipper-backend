@@ -14,6 +14,7 @@ import { mainServerRunnig } from "./controllers/testController.js";
 import { stripeWebhook } from "./controllers/stripe/stripeController.js";
 import expressSession from "express-session";
 import passport from "passport"; // assuming you're using ES Modules
+import { globalErrorHandler } from "./middlewares/errorMiddleware.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -62,6 +63,9 @@ connectedRoutes(app);
 
 app.use("/", mainServerRunnig);
 
+// Global Error Handling Middleware
+app.use(globalErrorHandler);
+
 // Create HTTP server and attach Socket.IO
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
@@ -84,6 +88,14 @@ io.on("connection", (socket) => {
   socket.on("registerAdmin", () => {
     socket.join("admins");
     console.log("🛡️ Admin registered:", socket.id);
+  });
+
+  // User can register to receive personal order updates
+  socket.on("registerUser", (userId) => {
+    if (userId) {
+      socket.join(`user_${userId}`);
+      console.log(`👤 User registered to room user_${userId}:`, socket.id);
+    }
   });
 
   socket.on("disconnect", () => {

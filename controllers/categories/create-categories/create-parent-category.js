@@ -1,5 +1,13 @@
-import ParentCategories from "../../../models/categories.js";
-import client from "../../../config/redis/redisClient.js";
+import CategoryService from "../../../services/categoryService.js";
+import asyncHandler from "../../../middlewares/asyncHandler.js";
+import { z } from "zod";
+
+const parentCategorySchema = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1),
+  description: z.string().optional(),
+  recommendedCategories: z.array(z.string()).optional(),
+});
 
 /**
  * @route   POST /api/categories/create-parent-category
@@ -10,38 +18,12 @@ import client from "../../../config/redis/redisClient.js";
  * @param   {Object} res - Express response object
  * @returns {Object} JSON response with created category or error message
  */
-export const createParentCategory = async (req, res) => {
-  try {
-    const { name, slug, description, recommendedCategories } = req.body;
+export const createParentCategory = asyncHandler(async (req, res) => {
+  const validatedData = parentCategorySchema.parse(req.body);
+  const newCategory = await CategoryService.createParentCategory(validatedData);
 
-    // Validate required fields
-    if (!name || !slug) {
-      return res.status(400).json({ message: "Name and Slug are required" });
-    }
-
-    // Check if a category with the same slug already exists
-    const existingCategory = await ParentCategories.findOne({ slug });
-    if (existingCategory) {
-      return res.status(400).json({ message: "Slug already exists" });
-    }
-
-    // Create and save the new parent category
-    const newCategory = new ParentCategories({ name, slug, description, recommendedCategories });
-    await newCategory.save();
-
-    // 🧹 Flush Redis cache
-    try {
-      await client.flushAll();
-      console.log("✅ Redis cache flushed after parent category creation");
-    } catch (cacheError) {
-      console.error("⚠️ Error flushing Redis cache:", cacheError.message);
-    }
-
-    res.status(201).json({
-      message: "Parent Category created successfully",
-      category: newCategory,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Error creating Category", error });
-  }
-};
+  res.status(201).json({
+    message: "Parent Category created successfully",
+    category: newCategory,
+  });
+});

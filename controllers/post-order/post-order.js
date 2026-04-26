@@ -1,11 +1,45 @@
-import PostOrder from "../../models/post-order.js";
-import Product from "../../models/products.js";
-import Address from "../../models/address.js";
-import { sendEmail } from "../../services/email-service.js";
-import { orderConfirmationTemplate } from "../../Templates/orderConfirmationTemplate.js";
-import { adminOrderNotificationTemplate } from "../../Templates/adminOrderNotificationTemplate.js";
-import { orderStatusUpdateTemplate } from "../../Templates/orderStatusUpdateTemplate.js";
-import client from "../../config/redis/redisClient.js";
+
+import OrderService from "../../services/orderService.js";
+import asyncHandler from "../../middlewares/asyncHandler.js";
+import { z } from "zod";
+
+const orderItemSchema = z.object({
+  productId: z.string(),
+  variantId: z.string().optional().nullable(),
+  price: z.number().positive(),
+  quantity: z.number().int().positive(),
+});
+
+const addressSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  streetAddress: z.string().min(1),
+  city: z.string().min(1),
+  zipCode: z.string().min(1),
+  phone: z.string().min(1),
+  email: z.string().email(),
+});
+
+const createOrderSchema = z.object({
+  userId: z.string(),
+  items: z.array(orderItemSchema).min(1),
+  paymentMethod: z.string(),
+  deliveryFee: z.number().nonnegative(),
+  subTotal: z.number().nonnegative(),
+  addressId: z.string().optional().nullable(),
+  address: addressSchema.optional().nullable(),
+  isSaved: z.boolean().optional(),
+});
+
+const updateStatusSchema = z.object({
+  orderNo: z.string(),
+  status: z.string(),
+  statusDesc: z.string().optional(),
+});
+
+const bulkDeleteSchema = z.object({
+  ids: z.array(z.string()).min(1),
+});
 /**
  * @route POST /api/orders
  * @description Creates a new order with product items, handles stock updates, saves address (if provided), and sends confirmation emails.
@@ -52,234 +86,16 @@ import client from "../../config/redis/redisClient.js";
  * }
  */
 
-export const createPostOrder = async (req, res) => {
+export const createPostOrder = asyncHandler(async (req, res) => {
   const io = req.app.get("io");
-  try {
-    const {
-      userId,
-      items, // Array of products with { productId, variantId, price, quantity }
-      paymentMethod,
-      deliveryFee,
-      subTotal,
-      addressId,
-      address,
-      isSaved,
-    } = req.body;
+  const validatedData = createOrderSchema.parse(req.body);
+  const transformedResponse = await OrderService.createOrder(validatedData, io);
 
-    if (
-      !userId ||
-      !items ||
-      !items.length ||
-      !paymentMethod ||
-      deliveryFee == null ||
-      subTotal == null
-    ) {
-      return res
-        .status(400)
-        .json({ message: "Missing required order details." });
-    }
-
-    let finalAddressId = null;
-    let embeddedAddress = null;
-
-    if (addressId) {
-      const existingAddress = await Address.findById(addressId);
-      if (!existingAddress) {
-        return res.status(404).json({ message: "Address not found." });
-      }
-      finalAddressId = addressId;
-    } else if (address) {
-      if (
-        !address.firstName ||
-        !address.lastName ||
-        !address.streetAddress ||
-        !address.city ||
-        !address.zipCode ||
-        !address.phone ||
-        !address.email
-      ) {
-        return res.status(400).json({ message: "Incomplete address details." });
-      }
-
-      const isFirst = !(await Address.exists({ userId }));
-      const newAddress = new Address({ ...address, userId, isFirst });
-      const savedAddress = await newAddress.save();
-      finalAddressId = savedAddress._id;
-
-      if (isSaved) console.log("Address saved for future use");
-
-      embeddedAddress = savedAddress.toObject(); // Store in embedded format
-    } else {
-      return res.status(400).json({
-        message: "Either addressId or address details must be provided.",
-      });
-    }
-    // After resolving addressId / embeddedAddress
-
-    let orderItems = [];
-    for (const item of items) {
-      const { productId, variantId, price, quantity } = item;
-      const product = await Product.findById(productId);
-      if (!product) {
-        return res
-          .status(404)
-          .json({ message: `Product with ID ${productId} not found.` });
-      }
-
-      let selectedVariant = null;
-      if (variantId) {
-        selectedVariant = product.variants.find(
-          (v) => v._id.toString() === variantId.toString()
-        );
-        if (!selectedVariant) {
-          return res.status(404).json({ message: "Variant not found." });
-        }
-        if (selectedVariant.stock < quantity) {
-          return res.status(400).json({
-            message: `Insufficient stock for variant: ${selectedVariant.name}`,
-          });
-        }
-        selectedVariant.stock -= quantity; // Deduct stock
-      }
-
-      if (!variantId && product.stock < quantity) {
-        return res
-          .status(400)
-          .json({ message: "Insufficient stock for product." });
-      }
-
-      product.stock -= quantity; // Deduct product stock
-      await product.save();
-
-      orderItems.push({
-        productId,
-        productName: product.productName,
-        productImage: product.images?.[0]?.src || null,
-        variantId,
-        price,
-        quantity,
-        lineTotal: price * quantity,
-      });
-    }
-
-    const totalPrice = subTotal + deliveryFee;
-
-    const postOrder = new PostOrder({
-      userId,
-      items: orderItems,
-      paymentMethod,
-      deliveryFee,
-      subTotal,
-      total: totalPrice,
-      addressId: finalAddressId,
-      address: embeddedAddress || undefined,
-    });
-    // console.log(postOrder)
-    const savedPostOrder = await postOrder.save();
-    const responsePostOrder = await PostOrder.findById(savedPostOrder._id)
-      .populate("userId", "username email mobilePhone")
-      .populate("items.productId", "productName variants")
-      .populate(
-        "addressId",
-        "firstName lastName streetAddress city zipCode phone email isFirst"
-      );
-    // if (paymentMethod === "card") {
-    //   // Prepare orderMeta for stripe metadata
-    //   const orderMeta = {
-    //     deliveryFee: deliveryFee.toString(),
-    //     subTotal: subTotal.toString(),
-    //     address: embeddedAddress
-    //       ? `${embeddedAddress.streetAddress}, ${embeddedAddress.city}`
-    //       : "Saved Address",
-    //     email: embeddedAddress?.email || "guest@example.com",
-    //     orderNo: responsePostOrder.orderNo,
-    //   };
-
-    //   // Create Stripe Checkout session
-    //   const stripeUrl = await createCheckoutSession({
-    //     deliveryFee,
-    //     items,
-    //     userId,
-    //     orderMeta,
-    //   });
-
-    //   return res.status(200).json({
-    //     message: "Redirect to Stripe Checkout",
-    //     paymentUrl: stripeUrl,
-    //   });
-    // }
-
-    // console.log(responsePostOrder);
-
-    const transformedResponse = {
-      orderId: responsePostOrder._id,
-      user: {
-        userId: responsePostOrder.userId?._id,
-        username: responsePostOrder.userId?.username || "Deleted User",
-        email: responsePostOrder.userId?.email || "N/A",
-        phone: responsePostOrder.userId?.mobilePhone || "N/A",
-      },
-      items: responsePostOrder.items.map((item) => ({
-        productId: item.productId._id,
-        product: item.productId.productName,
-        variant: item.productId.variants?.find(
-          (v) => v._id.toString() === item.variantId?.toString()
-        ),
-
-        price: item.price,
-        quantity: item.quantity,
-        lineTotal: item.lineTotal,
-      })),
-      orderDetails: {
-        totalPrice: responsePostOrder.total,
-        subTotal: responsePostOrder.subTotal,
-        paymentMethod: responsePostOrder.paymentMethod,
-        paymentStatus: responsePostOrder.paymentStatus,
-        deliveryFee: responsePostOrder.deliveryFee,
-      },
-      address: responsePostOrder.addressId || responsePostOrder.address,
-      orderNo: responsePostOrder.orderNo,
-      orderStatuses: responsePostOrder.orderStatuses,
-      formattedDate: responsePostOrder.createdAt
-        ? new Intl.DateTimeFormat("en-US", {
-          weekday: "long",
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }).format(new Date(responsePostOrder.createdAt))
-        : "N/A",
-    };
-    // console.log(transformedResponse)
-    const { html, subject, text } = orderConfirmationTemplate(
-      responsePostOrder,
-      transformedResponse
-    );
-    const {
-      html: html1,
-      subject: adminSubject,
-      text: adminText,
-    } = adminOrderNotificationTemplate(responsePostOrder, transformedResponse);
-    // // Send emails
-    // // console.log(responsePostOrder.userId.email)
-    await sendEmail(responsePostOrder.userId.email, subject, text, html);
-    await sendEmail(process.env.EMAIL_USER, adminSubject, adminText, html1);
-    await sendEmail("pakshipperstore@gmail.com", adminSubject, adminText, html1);
-    await client.flushAll();
-
-    res.status(201).json({
-      message: "Order placed successfully!",
-      data: transformedResponse,
-    });
-    io.to("admins").emit("newOrder", {
-      message: "A new order has been placed!",
-      orderId: transformedResponse.orderId,
-      user: transformedResponse.user.userId,
-    });
-    console.log("🚨 Emitting to admins...");
-  } catch (error) {
-    res.status(500).json({ message: "Order Failed.", error });
-  }
-};
+  res.status(201).json({
+    message: "Order placed successfully!",
+    data: transformedResponse,
+  });
+});
 /**
  * @route UserAllOrder
  * @route GET /api/orders/user/:userId
@@ -334,65 +150,15 @@ export const createPostOrder = async (req, res) => {
  * }
  */
 
-export const userAllOrders = async (req, res) => {
-  try {
-    const { userId } = req.params;
-    console.log(userId);
-    const userOrders = await PostOrder.find({ userId })
-      .populate("userId", "username email mobilePhone")
-      .populate("items.productId", "productName variants")
-      .populate(
-        "addressId",
-        "firstName lastName streetAddress city zipCode phone email isFirst"
-      )
-      .sort({ createdAt: -1 });
-    console.log(userOrders);
-    const transformedResponse = userOrders.map((order) => ({
-      orderId: order._id,
-      user: {
-        username: order.userId?.username || "Deleted User",
-        email: order.userId?.email || "N/A",
-        phone: order.userId?.mobilePhone || "N/A",
-      },
-      items: order.items.map((item) => ({
-        productId: item.productId?._id || item.productId,
-        product: item.productName || item.productId?.productName || "Deleted Product",
-        variant: item.productId?.variants?.find(
-          (v) => v._id.toString() === item.variantId?.toString()
-        ) || (item.variantId ? { _id: item.variantId, name: "Unknown Variant" } : null),
+export const userAllOrders = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const transformedResponse = await OrderService.getUserOrders(userId);
 
-        price: item.price,
-        quantity: item.quantity,
-        lineTotal: item.lineTotal,
-        image: item.productImage || (item.productId?.images && item.productId.images[0]?.src) || null,
-      })),
-      orderDetails: {
-        totalPrice: order.total,
-        subTotal: order.subTotal,
-        paymentMethod: order.paymentMethod,
-        paymentStatus: order.paymentStatus,
-        deliveryFee: order.deliveryFee,
-      },
-      address: order.addressId || order.address,
-      orderNo: order.orderNo,
-      orderStatuses: order.orderStatuses,
-      createdAt: new Intl.DateTimeFormat("en-US", {
-        weekday: "long", // Include the name of the day
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(new Date(order.createdAt)), // Format date
-    }));
-
-    res.status(200).json({
-      message: "Order Fetch Successfully!",
-      // data1: userOrders,
-      data: transformedResponse,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Failed Fetching", error });
-  }
-};
+  res.status(200).json({
+    message: "Order Fetch Successfully!",
+    data: transformedResponse,
+  });
+});
 /**
  * @function AllOrders
  * @description Retrieves all orders from the database with user, product, and address details populated.
@@ -447,60 +213,14 @@ export const userAllOrders = async (req, res) => {
  * }
  */
 
-export const AllOrders = async (req, res) => {
-  try {
-    const userOrders = await PostOrder.find()
-      .populate("userId", "username email mobilePhone")
-      .populate("items.productId", "productName variants")
-      .populate(
-        "addressId",
-        "firstName lastName streetAddress city zipCode phone email isFirst"
-      )
-      .sort({ createdAt: -1 });
+export const AllOrders = asyncHandler(async (req, res) => {
+  const transformedResponse = await OrderService.getAllOrders();
 
-    const transformedResponse = userOrders.map((order) => ({
-      orderId: order._id,
-      user: {
-        username: order.userId?.username || "Deleted User",
-        email: order.userId?.email || "N/A",
-        phone: order.userId?.mobilePhone || "N/A",
-      },
-      items: order.items.map((item) => ({
-        productId: item.productId?._id || item.productId,
-        product: item.productName || item.productId?.productName || "Deleted Product",
-        variant: item.productId?.variants?.find(
-          (v) => v._id.toString() === item.variantId?.toString()
-        ) || (item.variantId ? { _id: item.variantId, name: "Unknown Variant" } : null),
-        price: item.price,
-        quantity: item.quantity,
-        lineTotal: item.lineTotal,
-        image: item.productImage || (item.productId?.images && item.productId.images[0]?.src) || null,
-      })),
-      totalPrice: order.totalPrice,
-      subTotal: order.subTotal,
-      paymentMethod: order.paymentMethod,
-      paymentStatus: order.paymentStatus,
-      deliveryFee: order.deliveryFee,
-      address: order.addressId,
-      orderNo: order.orderNo,
-      orderStatuses: order.orderStatuses,
-      formattedDate: new Intl.DateTimeFormat("en-US", {
-        weekday: "long",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(new Date(order.createdAt)),
-    }));
-
-    res.status(200).json({
-      message: "Order Fetch Successfully!",
-      data: transformedResponse,
-    });
-  } catch (error) {
-    console.log(error)
-    res.status(500).json({ message: "Failed Fetching", error });
-  }
-};
+  res.status(200).json({
+    message: "Order Fetch Successfully!",
+    data: transformedResponse,
+  });
+});
 
 /**
  * @function searchOrderNoOrders
@@ -562,67 +282,15 @@ export const AllOrders = async (req, res) => {
  * }
  */
 
-export const searchOrderNoOrders = async (req, res) => {
-  try {
-    const { orderNo } = req.params;
+export const searchOrderNoOrders = asyncHandler(async (req, res) => {
+  const { orderNo } = req.params;
+  const transformedResponse = await OrderService.getOrderByNo(orderNo);
 
-    const orderNoOrder = await PostOrder.findOne({ orderNo })
-      .populate("userId", "username email mobilePhone")
-      .populate("items.productId", "productName variants")
-      .populate(
-        "addressId",
-        "firstName lastName streetAddress city zipCode phone email isFirst"
-      );
-
-    if (!orderNoOrder) {
-      return res.status(404).json({ message: "Order Not Found" });
-    }
-
-    const transformedResponse = {
-      orderId: orderNoOrder._id,
-      user: {
-        username: orderNoOrder.userId?.username || "Deleted User",
-        email: orderNoOrder.userId?.email || "N/A",
-        phone: orderNoOrder.userId?.mobilePhone || "N/A",
-      },
-      items: orderNoOrder.items.map((item) => {
-        const variant = item.productId?.variants?.find(
-          (v) => v._id.toString() === item.variantId?.toString()
-        ) || (item.variantId ? { _id: item.variantId, name: "Unknown Variant" } : null);
-        return {
-          productId: item.productId?._id || item.productId,
-          product: item.productName || item.productId?.productName || "Deleted Product",
-          variant,
-          price: item.price,
-          quantity: item.quantity,
-          lineTotal: item.lineTotal,
-          image: item.productImage || (item.productId?.images && item.productId.images[0]?.src) || null,
-        };
-      }),
-      totalPrice: orderNoOrder.totalPrice,
-      subTotal: orderNoOrder.subTotal,
-      paymentMethod: orderNoOrder.paymentMethod,
-      paymentStatus: orderNoOrder.paymentStatus,
-      deliveryFee: orderNoOrder.deliveryFee,
-      address: orderNoOrder.addressId,
-      orderNo: orderNoOrder.orderNo,
-      orderStatuses: orderNoOrder.orderStatuses,
-      createdAt: new Intl.DateTimeFormat("en-US", {
-        weekday: "long",
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      }).format(new Date(orderNoOrder.createdAt)),
-    };
-
-    res.status(200).json({
-      message: "Order Fetch Successfully!",
-      data: transformedResponse,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Failed Fetching", error });
-  }
-};
+  res.status(200).json({
+    message: "Order Fetch Successfully!",
+    data: transformedResponse,
+  });
+});
 
 /**
  * @function userAddress
@@ -654,27 +322,15 @@ export const searchOrderNoOrders = async (req, res) => {
  * }
  */
 
-export const userAddress = async (req, res) => {
-  try {
-    const { userId } = req.params;
+export const userAddress = asyncHandler(async (req, res) => {
+  const { userId } = req.params;
+  const userAddress = await OrderService.getUserDefaultAddress(userId);
 
-    // Find the address with isFirst: true
-    const userAddress = await Address.findOne({ userId, isFirst: true });
-
-    if (!userAddress) {
-      return res
-        .status(404)
-        .json({ message: "Address with isFirst: true not found." });
-    }
-
-    res.status(200).json({
-      message: "Address fetched successfully!",
-      address: userAddress,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Error occurred", error });
-  }
-};
+  res.status(200).json({
+    message: "Address fetched successfully!",
+    address: userAddress,
+  });
+});
 
 /**
  * @function orderStatusUpdate
@@ -719,44 +375,16 @@ export const userAddress = async (req, res) => {
  * }
  */
 
-export const orderStatusUpdate = async (req, res) => {
-  try {
-    const { orderNo, status, statusDesc } = req.body;
+export const orderStatusUpdate = asyncHandler(async (req, res) => {
+  const io = req.app.get("io");
+  const { orderNo, status, statusDesc } = updateStatusSchema.parse(req.body);
+  const orderStatuses = await OrderService.updateOrderStatus(orderNo, status, statusDesc, io);
 
-    // Find the order by order number
-    const order = await PostOrder.findOne({ orderNo }).populate("userId");
-
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    // Add the new status to the orderStatuses array
-    order.orderStatuses.push({
-      status,
-      statusDesc,
-      updatedAt: new Date(),
-    });
-
-    // Save the updated order
-    await order.save();
-
-    // Send email notification to user
-    if (order.userId && order.userId.email) {
-      const { subject, text, html } = orderStatusUpdateTemplate(
-        order,
-        { status, statusDesc }
-      );
-      await sendEmail(order.userId.email, subject, text, html);
-    }
-
-    return res.status(200).json({
-      message: "Order status updated successfully",
-      orderStatuses: order.orderStatuses,
-    });
-  } catch (error) {
-    return res.status(500).json({ message: "Error occurred", error });
-  }
-};
+  res.status(200).json({
+    message: "Order status updated successfully",
+    orderStatuses,
+  });
+});
 
 /**
  * @function deletePostOrder
@@ -773,20 +401,11 @@ export const orderStatusUpdate = async (req, res) => {
  * @returns {Object} 404 - Order not found
  * @returns {Object} 500 - Internal server error
  */
-export const deletePostOrder = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const deletedOrder = await PostOrder.findByIdAndDelete(id);
-
-    if (!deletedOrder) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    res.status(200).json({ message: "Order deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to delete order", error });
-  }
-};
+export const deletePostOrder = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  await OrderService.deleteOrder(id);
+  res.status(200).json({ message: "Order deleted successfully" });
+});
 
 /**
  * @function bulkDeletePostOrders
@@ -803,21 +422,12 @@ export const deletePostOrder = async (req, res) => {
  * @returns {Object} 400 - IDs missing or invalid format
  * @returns {Object} 500 - Internal server error
  */
-export const bulkDeletePostOrders = async (req, res) => {
-  try {
-    const { ids } = req.body;
+export const bulkDeletePostOrders = asyncHandler(async (req, res) => {
+  const { ids } = bulkDeleteSchema.parse(req.body);
+  const deletedCount = await OrderService.bulkDeleteOrders(ids);
 
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ message: "No order IDs provided for deletion" });
-    }
-
-    const result = await PostOrder.deleteMany({ _id: { $in: ids } });
-
-    res.status(200).json({
-      message: `${result.deletedCount} orders deleted successfully`,
-      deletedCount: result.deletedCount,
-    });
-  } catch (error) {
-    res.status(500).json({ message: "Failed to delete orders", error });
-  }
-};
+  res.status(200).json({
+    message: `${deletedCount} orders deleted successfully`,
+    deletedCount,
+  });
+});

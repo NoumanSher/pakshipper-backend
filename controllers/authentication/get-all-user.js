@@ -1,4 +1,5 @@
-import User from "../../models/user-schema.js";
+import UserService from "../../services/userService.js";
+import asyncHandler from "../../middlewares/asyncHandler.js";
 
 /**
  * @route   GET /api/auth/all
@@ -8,19 +9,11 @@ import User from "../../models/user-schema.js";
  * @param   {Object} res - Express response object
  * @returns {Object} JSON response containing all users (without password fields)
  */
-export const getAllUsers = async (req, res) => {
-  try {
-    // Fetch all users excluding sensitive fields and populate role
-    const users = await User.find({}, "-password -refreshToken").populate("role");
+export const getAllUsers = asyncHandler(async (req, res) => {
+  const users = await UserService.getAllUsers();
 
-    res.status(200).json({
-      message: "Users fetched successfully",
-      data: users,
-    });
-  } catch (error) {
-    res.status(500).json({
-      message: "Error fetching users",
-      error,
-    });
-  }
-};
+  res.status(200).json({
+    message: "Users fetched successfully",
+    data: users,
+  });
+});

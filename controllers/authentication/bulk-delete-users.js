@@ -1,4 +1,10 @@
-import User from "../../models/user-schema.js";
+import UserService from "../../services/userService.js";
+import asyncHandler from "../../middlewares/asyncHandler.js";
+import { z } from "zod";
+
+const bulkDeleteUsersSchema = z.object({
+  ids: z.array(z.string()).min(1),
+});
 
 /**
  * @route   DELETE /api/auth/delete-users
@@ -8,30 +14,12 @@ import User from "../../models/user-schema.js";
  * @param   {Object} res - Express response object
  * @returns {Object} JSON response with success or error message
  */
-export const bulkDeleteUsers = async (req, res) => {
-    try {
-        const { ids } = req.body;
+export const bulkDeleteUsers = asyncHandler(async (req, res) => {
+    const { ids } = bulkDeleteUsersSchema.parse(req.body);
+    const deletedCount = await UserService.bulkDeleteUsers(ids);
 
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return res.status(400).json({
-                message: "Please provide an array of user IDs to delete"
-            });
-        }
-
-        // Delete users where _id is in the ids array
-        const result = await User.deleteMany({
-            _id: { $in: ids }
-        });
-
-        res.status(200).json({
-            message: "Users deleted successfully",
-            deletedCount: result.deletedCount
-        });
-    } catch (error) {
-        console.error("Error bulk deleting users:", error);
-        res.status(500).json({
-            message: "Error deleting users",
-            error: error.message,
-        });
-    }
-};
+    res.status(200).json({
+        message: "Users deleted successfully",
+        deletedCount
+    });
+});

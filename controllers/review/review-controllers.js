@@ -517,6 +517,7 @@ export const userAllReveiw = async (req, res) => {
   try {
     const { userId } = req.params;
     const {
+      status = "approved",
       page = 1,
       limit = 10,
       sortBy = "createdAt",

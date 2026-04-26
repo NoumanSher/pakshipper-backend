@@ -1,13 +1,26 @@
-import client from "../../config/redis/redisClient.js";
-import Product from "../../models/products.js";
-import mongoose from "mongoose";
-import cloudinary from "../../utils/cloudinary.js";
-import { adminConfig } from "../../utils/cloudinaryAdmin.js";
-import ParentCategory from "../../models/categories.js";
-import ChildCategory from "../../models/child-categories.js";
-import Review from "../../models/Review.js";
-import PostOrder from "../../models/post-order.js";
-import UserCart from "../../models/UserCart.js";
+
+import ProductService from "../../services/productService.js";
+import { z } from "zod";
+import asyncHandler from "../../middlewares/asyncHandler.js";
+
+const productSchema = z.object({
+  productName: z.string().min(1, "Product name is required"),
+  parentCategoryID: z.string(),
+  childCategoryID: z.string().nullable().optional(),
+  description: z.string(),
+  isVariant: z.boolean().optional(),
+  salePrice: z.number().min(0, "Sale price must be non-negative"),
+  sku: z.string().min(1, "SKU is required"),
+  costPrice: z.number().min(0),
+  isLimited: z.boolean().optional(),
+  stock: z.number().min(0).optional(),
+  discount: z.number().min(0).optional(),
+  isNew: z.boolean().optional(),
+  images: z.array(z.any()).optional(),
+  options: z.array(z.any()).optional(),
+  variants: z.array(z.any()).optional(),
+  seo: z.any(),
+});
 
 let commonProjection = {
   // parentCategoryID: 0,
@@ -22,1041 +35,120 @@ let commonProjection = {
 }
 
 // create Products
-export const createProduct = async (req, res) => {
-  try {
-    const {
-      productName,
-      parentCategoryID,
-      childCategoryID,
-      description,
-      isVariant,
-      salePrice,
-      sku,
-      costPrice,
-      isLimited,
-      stock,
-      discount,
-      isNew,
-      images,
-      options,
-      variants,
-      seo,
-    } = req.body;
-    const newProduct = new Product({
-      productName,
-      parentCategoryID,
-      childCategoryID,
-      description,
-      isVariant,
-      salePrice,
-      sku,
-      costPrice,
-      stock,
-      isLimited,
-      discount,
-      isNew,
-      images,
-      options,
-      variants,
-      seo,
-      createdBy: req.user.id || req.user._id, // Save the creator's ID
-    });
-    const savedProduct = await newProduct.save();
-    await client.flushAll();
+export const createProduct = asyncHandler(async (req, res, next) => {
+  // Validate request body
+  const validatedData = productSchema.parse(req.body);
 
-    res
-      .status(201)
-      .json({ message: "Product Added SuccesFully!", savedProduct });
-  } catch (error) {
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern)[0];
-      const message = field.includes("slug")
-        ? "A product with this URL slug already exists. Please choose a different slug."
-        : field.includes("sku")
-          ? "A product with this SKU already exists. Please choose a different SKU."
-          : `Duplicate value for ${field}. Please use a unique value.`;
-      return res.status(400).json({ message });
-    }
-    res.status(500).json({ message: "Error Creating Product", error });
-  }
-};
+  const savedProduct = await ProductService.createProduct(
+    validatedData,
+    req.user.id || req.user._id
+  );
+
+  res.status(201).json({
+    status: 'success',
+    message: "Product Added Successfully!",
+    data: savedProduct
+  });
+});
 // Product by ID
-export const getProductById = async (req, res) => {
-  try {
-    const { id } = req.params;
+export const getProductById = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
 
-    // Validate if the ID is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid Product ID" });
-    }
-    // Check if the request is from an admin
-    const isAdminRequest = req.user && (
-      req.user.role === 'admin' ||
-      req.user.permissions?.includes('product_approval') ||
-      req.user.permissions?.includes('read:products')
-    );
+  // Check if the request is from an admin
+  const isAdminRequest = req.user && (
+    req.user.role === 'admin' ||
+    req.user.permissions?.includes('product_approval') ||
+    req.user.permissions?.includes('read:products')
+  );
 
-    const cacheKey = isAdminRequest ? `product:admin:${id}` : `product::${id}`;
+  const response = await ProductService.getProductById(id, isAdminRequest);
 
-    // 🔍 Check Redis cache
-    const cached = await client.get(cacheKey);
-    if (cached) {
-      console.log(`✅ Cache hit (${isAdminRequest ? 'Admin' : 'Public'})`);
-      return res.status(200).json(JSON.parse(cached));
-    }
-
-    let query = Product.findById(id);
-
-    // Only exclude costPrice for non-admins
-    if (!isAdminRequest) {
-      query = query.select("-costPrice");
-    }
-
-    const product = await query
-      .populate("parentCategoryID", "name slug")
-      .populate("childCategoryID", "name slug");
-    if (!product) {
-      return res.status(404).json({ message: "Product Not Found" });
-    }
-    // Transform the product data to rename fields
-    const transformedProduct = {
-      ...product.toObject(),
-      parentCategoryName: product.parentCategoryID?.name || null,
-      parentCategorySlug: product.parentCategoryID?.slug || null,
-      parentCategoryID: product.parentCategoryID?._id || null,
-      childCategoryID: product.childCategoryID?._id || null,
-      childCategoryName: product.childCategoryID?.name || null,
-      childCategorySlug: product.childCategoryID?.slug || null,
-    };
-
-    // // Remove the original parentCategoryID and childCategoryID
-    // delete transformedProduct.parentCategoryID;
-    // delete transformedProduct.childCategoryID;
-    const response = {
-      message: "Product Found Successfully",
-      data: transformedProduct,
-    };
-
-    // 💾 Cache result
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
-
-    res.status(200).json(response);
-
-    // res.status(200).json({
-    //   message: "Product Found Successfully",
-    //   data: transformedProduct,
-    // });
-  } catch (error) {
-    console.error("Error fetching product:", error);
-    res
-      .status(500)
-      .json({ message: "Error Fetching Product", error: error.message });
-  }
-};
+  res.status(200).json(response);
+});
 
 // Product by Slug
-export const getProductBySlug = async (req, res) => {
-  try {
-    const { slug } = req.params;
-
-    if (!slug) {
-      return res.status(400).json({ message: "Slug is required" });
-    }
-
-    const cacheKey = `product:slug:${slug}`;
-
-    // 🔍 Check Redis cache
-    const cached = await client.get(cacheKey);
-    if (cached) {
-      console.log("✅ Cache hit (by Slug)");
-      return res.status(200).json(JSON.parse(cached));
-    }
-
-    // Only return approved products for public API (or products without approval status for backward compatibility)
-    const product = await Product.findOne({
-      "seo.slug": slug,
-      isDeleted: { $ne: true },
-      $or: [
-        { approvalStatus: 'approved' },
-        { approvalStatus: { $exists: false } },
-        { approvalStatus: null }
-      ]
-    })
-      .select("-rating -reveiws -costPrice")
-      .populate("parentCategoryID", "name slug")
-      .populate("childCategoryID", "name slug");
-
-    if (!product) {
-      return res.status(404).json({ message: "Product Not Found" });
-    }
-
-    // Transform the product data to rename fields
-    const transformedProduct = {
-      ...product.toObject(),
-      parentCategoryName: product.parentCategoryID?.name || null,
-      parentCategorySlug: product.parentCategoryID?.slug || null,
-      parentCategoryID: product.parentCategoryID?._id || null,
-      childCategoryID: product.childCategoryID?._id || null,
-      childCategoryName: product.childCategoryID?.name || null,
-      childCategorySlug: product.childCategoryID?.slug || null,
-    };
-
-    // 🌟 Fetch approved reviews and rating stats
-    const [reviews, stats] = await Promise.all([
-      Review.find({ productId: product._id, status: "approved" })
-        .select("-images")
-        .populate("userId", "username")
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .lean(),
-      Review.aggregate([
-        {
-          $match: {
-            productId: product._id,
-            status: "approved",
-          },
-        },
-        {
-          $group: {
-            _id: null,
-            averageRating: { $avg: "$rating" },
-            totalReviews: { $sum: 1 },
-          },
-        },
-      ]),
-    ]);
-
-    const ratingStats = stats[0] || { averageRating: 0, totalReviews: 0 };
-
-    const response = {
-      message: "Product Found Successfully",
-      data: {
-        ...transformedProduct,
-        reviews,
-        ratingStats: {
-          averageRating: Math.round((ratingStats.averageRating || 0) * 10) / 10,
-          totalReviews: ratingStats.totalReviews || 0,
-        },
-      },
-    };
-
-    // 💾 Cache result
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
-
-    res.status(200).json(response);
-  } catch (error) {
-    console.error("Error fetching product by slug:", error);
-    res
-      .status(500)
-      .json({ message: "Error Fetching Product", error: error.message });
-  }
-};
+export const getProductBySlug = asyncHandler(async (req, res, next) => {
+  const { slug } = req.params;
+  const response = await ProductService.getProductBySlug(slug);
+  res.status(200).json(response);
+});
 // Delete Product
-export const deleteProduct = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { mode } = req.query; // 'soft' or 'hard'
+export const deleteProduct = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const { mode } = req.query; // 'soft' or 'hard'
+
+  const response = await ProductService.deleteProduct(id, mode);
+
+  res.status(200).json(response);
+});
+
+export const getAllProducts = asyncHandler(async (req, res, next) => {
+  const {
+    parentCategoryID,
+    childCategoryID,
+    parentCategorySlug,
+    childCategorySlug,
+    mode = "full",
+    page = 1,
+    limit = 8,
+    approvalStatus,
+  } = req.query;
+
+  // Check if the request is from an admin/approver user
+  const isAdminRequest = req.user && (
+    req.user.role === 'admin' ||
+    req.user.permissions?.includes('product_approval') ||
+    req.user.permissions?.includes('read:products')
+  );
+
+  const response = await ProductService.getAllProducts({
+    parentCategoryID,
+    childCategoryID,
+    parentCategorySlug,
+    childCategorySlug,
+    mode,
+    page,
+    limit,
+    approvalStatus,
+    isAdminRequest
+  });
+
+  res.status(200).json(response);
+});
+
+
+
+export const updateProduct = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const userId = req.user?._id || req.user?.id;
+
+  // Validate request body
+  const validatedData = productSchema.partial().parse(req.body);
+
+  const response = await ProductService.updateProduct(id, validatedData, userId);
+
+  res.status(200).json(response);
+});
 
-    // Validate the ID
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid Product ID" });
-    }
-
-    // Check for dependencies
-    const [orderCount, reviewCount, cartCount] = await Promise.all([
-      PostOrder.countDocuments({ "items.productId": id }),
-      Review.countDocuments({ productId: id }),
-      UserCart.countDocuments({ productId: id }),
-    ]);
-
-    const hasDependencies = orderCount > 0 || reviewCount > 0 || cartCount > 0;
-
-    // If dependencies exist and mode is not 'soft', block deletion
-    if (hasDependencies && mode !== "soft") {
-      const dependencyMessages = [];
-      if (orderCount > 0) dependencyMessages.push(`${orderCount} order(s)`);
-      if (reviewCount > 0) dependencyMessages.push(`${reviewCount} review(s)`);
-      if (cartCount > 0) dependencyMessages.push(`${cartCount} cart item(s)`);
-
-      return res.status(400).json({
-        message: `This product is linked to ${dependencyMessages.join(", ")}. It cannot be directly deleted. Please Archive (Soft Delete) it instead to preserve history.`,
-        dependencies: { orderCount, reviewCount, cartCount },
-        canSoftDelete: true
-      });
-    }
-
-    let product;
-    if (mode === "soft" || hasDependencies) {
-      // Soft Delete / Archive
-      product = await Product.findByIdAndUpdate(id, { isDeleted: true }, { new: true });
-      if (!product) {
-        return res.status(404).json({ message: "Product Not Found!" });
-      }
-      console.log(`✅ Product ${id} soft-deleted/archived.`);
-    } else {
-      // Hard Delete (only if no dependencies and not explicitly soft)
-      product = await Product.findByIdAndDelete(id);
-      if (!product) {
-        return res.status(404).json({ message: "Product Not Found!" });
-      }
-
-      // Delete associated images from Cloudinary only on hard delete
-      if (product.images && product.images.length > 0) {
-        const publicIds = product.images
-          .filter((img) => img.publicId)
-          .map((img) => img.publicId);
-
-        if (publicIds.length > 0) {
-          try {
-            await cloudinary.api.delete_resources(publicIds, adminConfig);
-            console.log(`✅ Deleted ${publicIds.length} images from Cloudinary`);
-          } catch (cloudinaryError) {
-            console.error("⚠️ Error deleting images from Cloudinary:", cloudinaryError.message);
-          }
-        }
-      }
-      console.log(`✅ Product ${id} permanently deleted.`);
-    }
-
-    await client.flushAll();
-
-    res.status(200).json({
-      message: mode === "soft" || hasDependencies ? "Product Archived Successfully!" : "Product Permanently Deleted!",
-      isDeleted: true,
-      mode: mode === "soft" || hasDependencies ? "soft" : "hard"
-    });
-  } catch (error) {
-    console.error("Error in deleteProduct:", error);
-    res.status(500).json({ message: "Error Deleting Product", error: error.message });
-  }
-};
-
-export const getAllProducts = async (req, res) => {
-  try {
-    const {
-      parentCategoryID,
-      childCategoryID,
-      parentCategorySlug,
-      childCategorySlug,
-      mode = "full", // Default mode is full if not specified
-      page = 1,
-      limit = 8,
-      approvalStatus, // NEW: Filter by approval status
-    } = req.query;
-
-    // Check if the request is from an admin/approver user
-    const isAdminRequest = req.user && (
-      req.user.role === 'admin' ||
-      req.user.permissions?.includes('product_approval') ||
-      req.user.permissions?.includes('read:products')
-    );
-
-
-    // Build approval status filter
-    let approvalFilter = {};
-
-    if (approvalStatus === 'all') {
-      // 'all' means show everything - no filter
-      approvalFilter = {};
-    } else if (approvalStatus) {
-      // Specific status requested (pending, approved, rejected)
-      approvalFilter = { approvalStatus };
-    } else if (!isAdminRequest) {
-      // Public users (no status specified): only show approved products or products without status (backward compatibility)
-      approvalFilter = {
-        $or: [
-          { approvalStatus: 'approved' },
-          { approvalStatus: { $exists: false } },
-          { approvalStatus: null }
-        ]
-      };
-    }
-    // If admin and no status specified, show all products (no filter)
-
-    // If archived status is requested, only show deleted products regardless of approval status
-    // Otherwise, show non-deleted products filtered by approval status
-    const query = approvalStatus === 'archived'
-      ? { isDeleted: true }
-      : { ...approvalFilter, isDeleted: { $ne: true } };
-
-    // 🔍 Resolve Slugs to IDs in parallel if provided
-    const slugResolutions = [];
-
-    if (parentCategorySlug) {
-      slugResolutions.push(
-        ParentCategory.findOne({ slug: parentCategorySlug }).lean().then(cat => {
-          if (cat) query.parentCategoryID = cat._id;
-          else return { error: `Parent Category with slug '${parentCategorySlug}' not found` };
-        })
-      );
-    } else if (parentCategoryID) {
-      query.parentCategoryID = parentCategoryID;
-    }
-
-    if (childCategorySlug) {
-      slugResolutions.push(
-        ChildCategory.findOne({ slug: childCategorySlug }).lean().then(cat => {
-          if (cat) query.childCategoryID = cat._id;
-          else return { error: `Child Category with slug '${childCategorySlug}' not found` };
-        })
-      );
-    } else if (childCategoryID) {
-      query.childCategoryID = childCategoryID;
-    }
-
-    if (slugResolutions.length > 0) {
-      const results = await Promise.all(slugResolutions);
-      const errorResult = results.find(r => r && r.error);
-      if (errorResult) return res.status(404).json({ message: errorResult.error });
-    }
-
-    const pageNumber = parseInt(page, 10) || 1;
-    const limitNumber = parseInt(limit, 10) || 8;
-    const skip = (pageNumber - 1) * limitNumber;
-
-    // 🔑 Generate Redis cache key (including mode and approval status)
-    const cacheKey = `products::${new URLSearchParams({
-      pID: query.parentCategoryID || "",
-      cID: query.childCategoryID || "",
-      pS: parentCategorySlug || "",
-      cS: childCategorySlug || "",
-      m: mode,
-      p: pageNumber,
-      l: limitNumber,
-      as: approvalStatus || "",
-      adm: isAdminRequest ? "1" : "0",
-    }).toString()}`;
-
-    // 🧪 Cache check
-    const cached = await client.get(cacheKey);
-    if (cached) {
-      console.log(`✅ Cache hit (mode: ${mode})`);
-      return res.status(200).json(JSON.parse(cached));
-    }
-
-    // Define projection based on mode
-
-    let projection = {};
-    if (mode === "seo") {
-      projection = { 'seo.slug': 1, parentCategoryID: 0, childCategoryID: 0, _id: 0 };
-    } else if (mode === "client") {
-      projection = {
-        ...commonProjection,
-        sku: 0,
-        description: 0,
-        variants: 0,
-        // discount: 0, // Enabled discount visibility for storefront
-        approvalStatus: 0,
-        approvalInfo: 0,
-        approvalHistory: 0,
-      };
-    } else if (mode === "admin") {
-      projection = {
-        ...commonProjection,
-
-        seo: 0,
-      };
-    } else if (mode === "images") {
-      projection = { "images.src": 1, "images.alt": 1, productName: 1, "seo.slug": 1, _id: 0, parentCategoryID: 0, childCategoryID: 0 };
-    }
-
-    // ⚡ Parallel execution of finding products and counting total
-    const [products, totalProducts] = await Promise.all([
-      Product.find(query)
-        .select(projection)
-        .populate("parentCategoryID", "name")
-        .populate("childCategoryID", "name")
-        .sort({ updatedAt: 1 })
-        .skip(skip)
-        .limit(limitNumber)
-        .lean()
-        .maxTimeMS(30000),
-      Product.countDocuments(query),
-    ]);
-
-    const totalPages = Math.ceil(totalProducts / limitNumber);
-
-    if (products.length === 0) {
-      return res.status(200).json({
-        message: "No Products Found",
-        data: [],
-      });
-    }
-
-    // Prepare response mapping based on mode
-    const productList = products.map((product) => {
-      // For SEO mode, we don't need to transform much beyond basic fields
-      if (mode === "seo") return product;
-      if (mode === "images") return product;
-      if (mode === "client") return product;
-      if (mode === "admin") return product;
-
-      // For client and admin, we transform categories
-      return {
-        ...product,
-        parentCategoryName: product.parentCategoryID?.name || null,
-        parentCategoryID: product.parentCategoryID?._id || null,
-        childCategoryName: product.childCategoryID?.name || null,
-        childCategoryID: product.childCategoryID?._id || null,
-      };
-    });
-
-    const response = {
-      message: "Products Retrieved Successfully",
-      data: productList,
-      ...((mode === "seo" || mode === "images") ? {} : {
-        pagination: {
-          totalProducts,
-          totalPages,
-          currentPage: pageNumber,
-          pageSize: limitNumber,
-        }
-      }),
-    };
-
-    // 💾 Cache for 5 minutes (300 seconds)
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
-    res.status(200).json(response);
-  } catch (error) {
-    console.error("Error fetching products:", error);
-    res.status(500).json({
-      message: "Error Fetching Products",
-      error: error.message,
-    });
-  }
-};
-
-
-
-export const getProductsByCategoryPriority = async (req, res) => {
-  try {
-    const {
-      parentCategoryID,
-      childCategoryID,
-      parentCategorySlug,
-      childCategorySlug,
-    } = req.query;
-
-    let resolvedParentID = parentCategoryID;
-    let resolvedChildID = childCategoryID;
-
-    // 🔍 Resolve Slugs to IDs in parallel if provided
-    const slugResolutions = [];
-
-    if (parentCategorySlug) {
-      slugResolutions.push(
-        ParentCategory.findOne({ slug: parentCategorySlug }).lean().then(cat => {
-          if (cat) resolvedParentID = cat._id.toString();
-          else return { error: `Parent Category with slug '${parentCategorySlug}' not found` };
-        })
-      );
-    }
-
-    if (childCategorySlug) {
-      slugResolutions.push(
-        ChildCategory.findOne({ slug: childCategorySlug }).lean().then(cat => {
-          if (cat) resolvedChildID = cat._id.toString();
-          else return { error: `Child Category with slug '${childCategorySlug}' not found` };
-        })
-      );
-    }
-
-    if (slugResolutions.length > 0) {
-      const results = await Promise.all(slugResolutions);
-      const errorResult = results.find(r => r && r.error);
-      if (errorResult) return res.status(404).json({ message: errorResult.error });
-    }
-
-    // Validate input
-    if (!resolvedParentID) {
-      return res.status(400).json({ message: "Parent Category ID or Slug is required" });
-    }
-
-    // 🔑 Cache key
-    const cacheKey = `products-priority::${new URLSearchParams({
-      pID: resolvedParentID || "",
-      cID: resolvedChildID || "",
-      pS: parentCategorySlug || "",
-      cS: childCategorySlug || "",
-    }).toString()}`;
-
-    // 🧪 Cache check
-    const cached = await client.get(cacheKey);
-    if (cached) {
-      console.log("✅ Cache hit (priority)");
-      return res.status(200).json(JSON.parse(cached));
-    }
-
-    // Fetch products with slice and projection
-    let projection = {
-      ...commonProjection,
-      sku: 0,
-      description: 0,
-      variants: 0,
-      // discount: 0
-
-    };
-    // Only show approved products on public API (or products without approval status for backward compatibility)
-    const products = await Product.find({
-      parentCategoryID: resolvedParentID,
-      isDeleted: { $ne: true },
-      $or: [
-        { approvalStatus: 'approved' },
-        { approvalStatus: { $exists: false } },
-        { approvalStatus: null }
-      ]
-    })
-      .select(projection)
-      .populate("parentCategoryID", "name slug")
-      .populate("childCategoryID", "name slug")
-      .sort({ updatedAt: 1 })
-      .lean();
-
-    if (products.length === 0) {
-      return res.status(404).json({ message: "No Products Found" });
-    }
-
-    // Organize products by priority
-    const prioritizedProducts = [];
-    const otherProducts = [];
-
-    products.forEach((product) => {
-      const productData = {
-        ...product,
-        // parentCategoryName: product.parentCategoryID?.name || null,
-        // parentCategorySlug: product.parentCategoryID?.slug || null,
-        // childCategoryName: product.childCategoryID?.name || null,
-        // childCategorySlug: product.childCategoryID?.slug || null,
-        // parentCategoryID: product.parentCategoryID?._id,
-        // childCategoryID: product.childCategoryID?._id,
-      };
-
-      if (product.childCategoryID?._id.toString() === resolvedChildID) {
-        prioritizedProducts.push(productData);
-      } else {
-        otherProducts.push(productData);
-      }
-    });
-
-    const allProducts = [...prioritizedProducts, ...otherProducts];
-    const response = {
-      message: "Products Retrieved Successfully",
-      data: allProducts,
-    };
-
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
-    res.status(200).json(response);
-  } catch (error) {
-    console.error("Error fetching products:", error);
-    res.status(500).json({ message: "Error Fetching Products", error: error.message });
-  }
-};
-export const updateProduct = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const userId = req.user?._id || req.user?.id;
-
-    // Validate if the ID is a valid MongoDB ObjectId
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid Product ID" });
-    }
-
-    // Extract the updated data from the request body
-    const {
-      productName,
-      parentCategoryID,
-      childCategoryID,
-      description,
-      isVariant,
-      salePrice,
-      sku,
-      costPrice,
-      stock,
-      discount,
-      isNew,
-      isLimited,
-      images,
-      options,
-      variants,
-      seo,
-      isDeleted,
-    } = req.body;
-
-    // First, get the current product to check approval status
-    const currentProduct = await Product.findById(id);
-    if (!currentProduct) {
-      return res.status(404).json({ message: "Product Not Found" });
-    }
-
-    // Build update object
-    const updateData = {
-      productName,
-      parentCategoryID,
-      childCategoryID,
-      description,
-      isVariant,
-      salePrice,
-      sku,
-      costPrice,
-      isLimited,
-      stock,
-      discount,
-      isNew,
-      images,
-      options,
-      variants,
-      seo,
-      isDeleted,
-    };
-
-    // Auto-resubmit: If product was rejected and is being edited, change status to pending
-    if (currentProduct.approvalStatus === 'rejected') {
-      updateData.approvalStatus = 'pending';
-      updateData.$push = {
-        approvalHistory: {
-          action: 'resubmitted',
-          performedBy: userId,
-          performedAt: new Date(),
-          comments: 'Product edited and auto-resubmitted for approval'
-        }
-      };
-    }
-
-    // Ownership check is handled by middleware - proceed with update
-    const updatedProduct = await Product.findByIdAndUpdate(
-      id,
-      updateData,
-      { new: true, runValidators: true } // Return the updated product and enforce schema validation
-    );
-
-    // Check if the product was found and updated
-    if (!updatedProduct) {
-      return res.status(404).json({ message: "Product Not Found" });
-    }
-    await client.flushAll();
-
-    const responseMessage = currentProduct.approvalStatus === 'rejected'
-      ? "Product Updated Successfully and resubmitted for approval"
-      : "Product Updated Successfully";
-
-    res.status(200).json({
-      message: responseMessage,
-      data: updatedProduct,
-      resubmitted: currentProduct.approvalStatus === 'rejected'
-    });
-  } catch (error) {
-    console.error("Error updating product:", error);
-    if (error.code === 11000) {
-      const field = Object.keys(error.keyPattern)[0];
-      const message = field.includes("slug")
-        ? "A product with this URL slug already exists. Please choose a different slug."
-        : field.includes("sku")
-          ? "A product with this SKU already exists. Please choose a different SKU."
-          : `Duplicate value for ${field}. Please use a unique value.`;
-      return res.status(400).json({ message });
-    }
-    res
-      .status(500)
-      .json({ message: "Error Updating Product", error: error.message });
-  }
-};
-
-export const getLimitedProducts = async (req, res) => {
-  try {
-    const cacheKey = "products::limited";
-    // 🔍 Try getting from cache
-    const cached = await client.get(cacheKey);
-    if (cached) {
-      console.log("✅ Cache hit (limited)");
-      return res.status(200).json(JSON.parse(cached));
-    }
-    // Query to find all products with isLimited = true
-    // Only show approved products on public API (or products without approval status for backward compatibility)
-    const limitedProducts = await Product.find({
-      isLimited: true,
-      isDeleted: { $ne: true },
-      $or: [
-        { approvalStatus: 'approved' },
-        { approvalStatus: { $exists: false } },
-        { approvalStatus: null }
-      ]
-    })
-      .select({
-        costPrice: 0,
-        images: { $slice: 1 }
-      })
-      .populate("parentCategoryID", "name")
-      .populate("childCategoryID", "name")
-      .sort({ updatedAt: 1 })
-      .lean();
-
-    if (limitedProducts.length === 0) {
-      return res.status(404).json({ message: "No Limited Products Found" });
-    }
-
-    // Format and return the response
-    const formattedProducts = limitedProducts.map((product) => ({
-      ...product,
-      parentCategoryID: product.parentCategoryID?._id,
-      childCategoryID: product.childCategoryID?._id,
-      parentCategoryName: product.parentCategoryID?.name || null,
-      childCategoryName: product.childCategoryID?.name || null,
-    }));
-    const response = {
-      message: "Limited Products Retrieved Successfully",
-      data: formattedProducts,
-    };
-
-    // 💾 Cache it
-    await client.setEx(cacheKey, 300, JSON.stringify(response)); // 5 min
-
-    res.status(200).json(response);
-
-    // res.status(200).json({
-    //   message: "Limited Products Retrieved Successfully",
-    //   data: formattedProducts,
-    // });
-  } catch (error) {
-    console.error("Error fetching limited products:", error);
-    res.status(500).json({
-      message: "Error Fetching Limited Products",
-      error: error.message,
-    });
-  }
-};
-
-export const getRecommendedProducts = async (req, res) => {
-  try {
-    const { categoryId } = req.query;
-    const cacheKey = categoryId ? `products::recommended::${categoryId}` : "products::recommended";
-    const cached = await client.get(cacheKey);
-    if (cached) {
-      console.log("✅ Cache hit (recommended)");
-      return res.status(200).json(JSON.parse(cached));
-    }
-
-    // Base query: product is active and approved
-    let query = {
-      isDeleted: { $ne: true },
-      $or: [
-        { approvalStatus: 'approved' },
-        { approvalStatus: { $exists: false } },
-        { approvalStatus: null }
-      ]
-    };
-
-    // If categoryId is provided, check for category-level recommendation rules
-    if (categoryId) {
-      const category = await ParentCategory.findById(categoryId).lean();
-
-      if (category && category.recommendedCategories && category.recommendedCategories.length > 0) {
-        // If category has recommended categories (cross-sell), fetch products from those categories
-        query.parentCategoryID = { $in: category.recommendedCategories };
-      } else {
-        // If no rules, return empty (no fallback to product-level tags as they are removed)
-        const response = { message: "No recommendation rules for this category", data: [] };
-        await client.setEx(cacheKey, 300, JSON.stringify(response));
-        return res.status(200).json(response);
-      }
-    } else {
-      // Global: Fetch products from any category that has cross-sell rules
-      const categoriesWithRules = await ParentCategory.find({
-        recommendedCategories: { $exists: true, $not: { $size: 0 } }
-      }).select("_id").lean();
-
-      if (categoriesWithRules.length > 0) {
-        const categoryIds = categoriesWithRules.map(c => c._id);
-        query.parentCategoryID = { $in: categoryIds };
-      } else {
-        const response = { message: "No recommendations available", data: [] };
-        await client.setEx(cacheKey, 300, JSON.stringify(response));
-        return res.status(200).json(response);
-      }
-    }
-
-    const recommendedProducts = await Product.find(query)
-      .select({
-        costPrice: 0,
-        images: { $slice: 1 }
-      })
-      .populate("parentCategoryID", "name")
-      .populate("childCategoryID", "name")
-      .sort({ updatedAt: -1 })
-      .limit(12)
-      .lean();
-
-    if (recommendedProducts.length === 0) {
-      const response = { message: "No Recommended Products Found", data: [] };
-      await client.setEx(cacheKey, 300, JSON.stringify(response));
-      return res.status(200).json(response);
-    }
-
-    const formattedProducts = recommendedProducts.map((product) => ({
-      ...product,
-      parentCategoryID: product.parentCategoryID?._id,
-      childCategoryID: product.childCategoryID?._id,
-      parentCategoryName: product.parentCategoryID?.name || null,
-      childCategoryName: product.childCategoryID?.name || null,
-    }));
-
-    const response = {
-      message: "Recommended Products Retrieved Successfully",
-      data: formattedProducts,
-    };
-
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
-
-    res.status(200).json(response);
-  } catch (error) {
-    console.error("Error fetching recommended products:", error);
-    res.status(500).json({
-      message: "Error Fetching Recommended Products",
-      error: error.message,
-    });
-  }
-};
 
 /**
  * Unified endpoint for Related and Recommended products.
  * Returns both in a single request to optimize storefront performance.
  */
-export const getProductRelatedInfo = async (req, res) => {
-  try {
-    const {
-      parentCategorySlug,
-      childCategorySlug,
-      categoryId,
-      productId // To exclude the current product
-    } = req.query;
+export const getProductRelatedInfo = asyncHandler(async (req, res, next) => {
+  const {
+    parentCategorySlug,
+    childCategorySlug,
+    categoryId,
+    productId // To exclude the current product
+  } = req.query;
 
-    const cacheKey = `products-related-info::${new URLSearchParams({
-      pS: parentCategorySlug || "",
-      cS: childCategorySlug || "",
-      cID: categoryId || "",
-      pID: productId || ""
-    }).toString()}`;
+  const response = await ProductService.getProductRelatedInfo({
+    parentCategorySlug,
+    childCategorySlug,
+    categoryId,
+    productId
+  });
 
-    const cached = await client.get(cacheKey);
-    if (cached) {
-      console.log("✅ Cache hit (related-info)");
-      return res.status(200).json(JSON.parse(cached));
-    }
-
-    // 1. Resolve IDs for Related Products
-    let resolvedParentID = null;
-    let resolvedChildID = null;
-
-    const slugResolutions = [];
-    if (parentCategorySlug) {
-      slugResolutions.push(
-        ParentCategory.findOne({ slug: parentCategorySlug }).lean().then(cat => {
-          if (cat) resolvedParentID = cat._id.toString();
-        })
-      );
-    }
-    if (childCategorySlug) {
-      slugResolutions.push(
-        ChildCategory.findOne({ slug: childCategorySlug }).lean().then(cat => {
-          if (cat) resolvedChildID = cat._id.toString();
-        })
-      );
-    }
-    await Promise.all(slugResolutions);
-
-    // Common query parts
-    const approvalFilter = {
-      isDeleted: { $ne: true },
-      $or: [
-        { approvalStatus: 'approved' },
-        { approvalStatus: { $exists: false } },
-        { approvalStatus: null }
-      ]
-    };
-
-    const projection = {
-      ...commonProjection,
-      sku: 0,
-      description: 0,
-      variants: 0,
-    };
-
-    // 2. Fetch Related and Recommended in Parallel
-    const [relatedResults, recommendedResults] = await Promise.all([
-      // Fetch Related
-      resolvedParentID ? Product.find({
-        ...approvalFilter,
-        parentCategoryID: resolvedParentID,
-        _id: { $ne: productId }
-      })
-        .select(projection)
-        .populate("parentCategoryID", "name slug")
-        .populate("childCategoryID", "name slug")
-        .sort({ updatedAt: 1 })
-        .lean() : Promise.resolve([]),
-
-      // Fetch Recommended
-      (async () => {
-        let recQuery = { ...approvalFilter, _id: { $ne: productId } };
-        let effectiveCategoryId = categoryId;
-
-        // If we don't have categoryId but have resolvedParentID, use it
-        if (!effectiveCategoryId && resolvedParentID) effectiveCategoryId = resolvedParentID;
-
-        if (effectiveCategoryId) {
-          const category = await ParentCategory.findById(effectiveCategoryId).lean();
-          if (category && category.recommendedCategories && category.recommendedCategories.length > 0) {
-            recQuery.parentCategoryID = { $in: category.recommendedCategories };
-          } else {
-            // No category-level recommendations found
-            return [];
-          }
-        } else {
-          // Fallback to global recommendations if no category ID
-          const categoriesWithRules = await ParentCategory.find({
-            recommendedCategories: { $exists: true, $not: { $size: 0 } }
-          }).select("_id").lean();
-
-          if (categoriesWithRules.length > 0) {
-            recQuery.parentCategoryID = { $in: categoriesWithRules.map(c => c._id) };
-          } else {
-            return [];
-          }
-        }
-
-        return Product.find(recQuery)
-          .select(projection)
-          .populate("parentCategoryID", "name slug")
-          .populate("childCategoryID", "name slug")
-          .sort({ updatedAt: -1 })
-          .limit(12)
-          .lean();
-      })()
-    ]);
-
-    // Format Related with Priority logic
-    const prioritizedRelated = [];
-    const otherRelated = [];
-    relatedResults.forEach((product) => {
-      if (product.childCategoryID?._id.toString() === resolvedChildID) {
-        prioritizedRelated.push(product);
-      } else {
-        otherRelated.push(product);
-      }
-    });
-
-    const response = {
-      message: "Product Related Info Retrieved Successfully",
-      data: {
-        related: [...prioritizedRelated, ...otherRelated],
-        recommended: recommendedResults
-      }
-    };
-
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
-    res.status(200).json(response);
-
-  } catch (error) {
-    console.error("Error fetching product related info:", error);
-    res.status(500).json({ message: "Error Fetching Related Info", error: error.message });
-  }
-};
+  res.status(200).json(response);
+});

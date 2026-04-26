@@ -1,4 +1,5 @@
-import User from "../../models/user-schema.js";
+import UserService from "../../services/userService.js";
+import asyncHandler from "../../middlewares/asyncHandler.js";
 
 /**
  * @route   GET /api/auth/user-data/:id
@@ -8,18 +9,9 @@ import User from "../../models/user-schema.js";
  * @param   {Object} res - Express response object
  * @returns {Object} JSON response with user data or error message
  */
-export const getUserById = async (req, res) => {
-  try {
-    const { id } = req.params;
+export const getUserById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const user = await UserService.getUserById(id);
 
-    // Fetch user by ID and exclude sensitive fields, populate role
-    const user = await User.findById(id, "-password -refreshToken").populate("role");
-    if (!user) {
-      return res.status(404).json({ message: "User not found" });
-    }
-
-    res.status(200).json({ message: "User fetched successfully", data: user });
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching user", error });
-  }
-};
+  res.status(200).json({ message: "User fetched successfully", data: user });
+});
