@@ -70,6 +70,14 @@ const postOrderSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+    discountAmount: {
+      type: Number,
+      default: 0,
+    },
+    discountType: {
+      type: String,
+      default: null,
+    },
     total: {
       type: Number,
       required: true,

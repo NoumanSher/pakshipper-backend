@@ -29,6 +29,7 @@ const createOrderSchema = z.object({
   addressId: z.string().optional().nullable(),
   address: addressSchema.optional().nullable(),
   isSaved: z.boolean().optional(),
+  discountAmount: z.number().nonnegative().optional(),
 });
 
 const updateStatusSchema = z.object({

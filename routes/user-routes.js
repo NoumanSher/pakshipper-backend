@@ -16,6 +16,7 @@ import "../OAuth/LinkedIn/LinkdinStaregy.js";
 import { deleteUser } from "../controllers/authentication/delete-user.js";
 import { bulkDeleteUsers } from "../controllers/authentication/bulk-delete-users.js";
 import { adminCreateUser } from "../controllers/authentication/admin-create-user.js";
+import { checkFirstOrderDiscount } from "../controllers/authentication/check-first-order-discount.js";
 // import passportL from "../OAuth/LinkedIn/LinkdinStaregy.js";
 
 const router = express.Router();
@@ -99,6 +100,13 @@ router.post("/admin/create-user", authMiddleware, checkPermission("write:custome
 
 // Get current authenticated user via token (JWT)
 router.get("/me", authMiddleware, getMe);
+
+/**
+ * @route   GET /api/auth/first-order-discount/:userId
+ * @desc    Check first-order 5% discount eligibility
+ * @access  Private
+ */
+router.get("/first-order-discount/:userId", authMiddleware, checkFirstOrderDiscount);
 
 router.get(
   "/google",

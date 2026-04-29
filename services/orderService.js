@@ -1,6 +1,7 @@
 import PostOrder from "../models/post-order.js";
 import Product from "../models/products.js";
 import Address from "../models/address.js";
+import User from "../models/user-schema.js";
 import { sendEmail } from "./email-service.js";
 import { orderConfirmationTemplate } from "../Templates/orderConfirmationTemplate.js";
 import { adminOrderNotificationTemplate } from "../Templates/adminOrderNotificationTemplate.js";
@@ -77,18 +78,35 @@ class OrderService {
 
     const totalPrice = subTotal + deliveryFee;
 
+    // --- First-order discount (5%) ---
+    let discountAmount = 0;
+    let discountType = null;
+    const user = await User.findById(userId);
+    if (user && !user.firstOrderDiscountUsed) {
+      discountAmount = Math.round(subTotal * 0.05);
+      discountType = "FIRST_ORDER";
+    }
+    const finalTotal = totalPrice - discountAmount;
+
     const postOrder = new PostOrder({
       userId,
       items: orderItems,
       paymentMethod,
       deliveryFee,
       subTotal,
-      total: totalPrice,
+      discountAmount,
+      discountType,
+      total: finalTotal,
       addressId: finalAddressId,
       address: embeddedAddress || undefined,
     });
 
     const savedPostOrder = await postOrder.save();
+
+    // Mark first-order discount as used if applied
+    if (discountAmount > 0 && user) {
+      await User.findByIdAndUpdate(userId, { firstOrderDiscountUsed: true });
+    }
     const responsePostOrder = await PostOrder.findById(savedPostOrder._id)
       .populate("userId", "username email mobilePhone")
       .populate("items.productId", "productName variants")
@@ -275,11 +293,15 @@ class OrderService {
         paymentMethod: order.paymentMethod,
         paymentStatus: order.paymentStatus,
         deliveryFee: order.deliveryFee,
+        discountAmount: order.discountAmount || 0,
+        discountType: order.discountType || null,
       },
       subTotal: order.subTotal,
       paymentMethod: order.paymentMethod,
       paymentStatus: order.paymentStatus,
       deliveryFee: order.deliveryFee,
+      discountAmount: order.discountAmount || 0,
+      totalPrice: order.total || order.totalPrice,
       address: order.addressId || order.address,
       orderNo: order.orderNo,
       orderStatuses: order.orderStatuses,

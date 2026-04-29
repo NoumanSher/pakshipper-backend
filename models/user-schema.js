@@ -58,6 +58,10 @@ const userSchema = new mongoose.Schema(
     refreshToken: {
       type: String,
     },
+    firstOrderDiscountUsed: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
