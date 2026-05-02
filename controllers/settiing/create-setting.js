@@ -1,4 +1,5 @@
 import Settings from "../../models/settings.js";
+import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
 
 /**
  * @route   POST /api/settings/create
@@ -20,6 +21,49 @@ export const createOrUpdateSettings = async (req, res) => {
                 req.body,
                 { new: true } // Return the updated document
             );
+
+            // Find deleted images and remove from Cloudinary
+            const oldUrls = new Set();
+            const newUrls = new Set();
+            
+            // Collect old URLs
+            if (existingSettings.logo) oldUrls.add(existingSettings.logo);
+            if (existingSettings.bannerImg) oldUrls.add(existingSettings.bannerImg);
+            if (existingSettings.bannerImages) {
+                existingSettings.bannerImages.forEach(imgObj => {
+                    if (imgObj.img) oldUrls.add(imgObj.img);
+                });
+            }
+            if (existingSettings.promoCards) {
+                existingSettings.promoCards.forEach(card => {
+                    if (card.img) oldUrls.add(card.img);
+                });
+            }
+            
+            // Collect new URLs
+            if (updatedSettings.logo) newUrls.add(updatedSettings.logo);
+            if (updatedSettings.bannerImg) newUrls.add(updatedSettings.bannerImg);
+            if (updatedSettings.bannerImages) {
+                updatedSettings.bannerImages.forEach(imgObj => {
+                    if (imgObj.img) newUrls.add(imgObj.img);
+                });
+            }
+            if (updatedSettings.promoCards) {
+                updatedSettings.promoCards.forEach(card => {
+                    if (card.img) newUrls.add(card.img);
+                });
+            }
+            
+            // Find orphaned URLs (in old but not in new)
+            const urlsToDelete = [...oldUrls].filter(url => !newUrls.has(url));
+            
+            if (urlsToDelete.length > 0) {
+                // Background deletion
+                deleteMultipleFromCloudinary(urlsToDelete, true).catch(err => 
+                    console.error("Background cloudinary deletion failed:", err)
+                );
+            }
+
             return res.status(200).json({ message: "Settings updated", data: updatedSettings });
         }
 

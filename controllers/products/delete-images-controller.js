@@ -22,13 +22,13 @@ export const deleteSingleImage = async (req, res) => {
     // Delete from Cloudinary
     const result = await cloudinary.uploader.destroy(publicId, adminConfig);
 
-    if (result.result === "ok") {
+    if (result.result === "ok" || result.result === "not found") {
       // Invalidate cache
       await client.flushAll();
 
       res.status(200).json({
         success: true,
-        message: "Image deleted successfully from Cloudinary",
+        message: "Image deleted successfully from Cloudinary (or already removed)",
         publicId: publicId,
       });
     } else {

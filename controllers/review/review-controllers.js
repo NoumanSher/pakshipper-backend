@@ -4,6 +4,7 @@ import mongoose from "mongoose";
 import Review from "../../models/Review.js";
 import client from "../../config/redis/redisClient.js";
 import postOrder from "../../models/post-order.js";
+import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
 
 /**
  * Create a new review for a product.
@@ -480,12 +481,20 @@ export const deleteReveiw = async (req, res) => {
       });
     }
 
+    // Delete associated images from Cloudinary
+    if (review.images && review.images.length > 0) {
+      // Review images are uploaded using standard config, so useAdminConfig = false
+      await deleteMultipleFromCloudinary(review.images, false).catch(err => 
+        console.error("Cloudinary image deletion failed for review:", err)
+      );
+    }
+
     await Review.findByIdAndDelete(reviewId);
 
     // Optional: Clear product cache or update product's review count if needed
 
     res.status(200).json({
-      message: "Review deleted successfully",
+      message: "Review and associated images deleted successfully",
     });
   } catch (error) {
     res.status(500).json({
