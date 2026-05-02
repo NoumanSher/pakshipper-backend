@@ -403,6 +403,32 @@ class ProductService {
       throw new AppError("Product Not Found", 404);
     }
 
+    // --- Cloudinary orphan cleanup ---
+    // If the incoming update includes a new images array, find which old images
+    // were removed and delete them from Cloudinary before saving.
+    if (updateData.images && Array.isArray(updateData.images)) {
+      const incomingPublicIds = new Set(
+        updateData.images
+          .map((img) => img.publicId)
+          .filter(Boolean)
+      );
+
+      const removedPublicIds = (currentProduct.images || [])
+        .filter((img) => img.publicId && !incomingPublicIds.has(img.publicId))
+        .map((img) => img.publicId);
+
+      if (removedPublicIds.length > 0) {
+        try {
+          await cloudinary.api.delete_resources(removedPublicIds, adminConfig);
+          console.log(`✅ Deleted ${removedPublicIds.length} removed image(s) from Cloudinary:`, removedPublicIds);
+        } catch (cloudinaryError) {
+          // Log but do not block the product update
+          console.error("⚠️ Error deleting removed images from Cloudinary:", cloudinaryError.message);
+        }
+      }
+    }
+    // --- End Cloudinary cleanup ---
+
     if (currentProduct.approvalStatus === 'rejected') {
       updateData.approvalStatus = 'pending';
       updateData.$push = {
