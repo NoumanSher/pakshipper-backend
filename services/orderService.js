@@ -271,6 +271,7 @@ class OrderService {
     order.returnReason = returnReason;
 
     // Restore stock only once
+    const restoredProductIds = [];
     if (!order.stockRestored) {
       for (const item of order.items) {
         const product = await Product.findById(
@@ -286,6 +287,7 @@ class OrderService {
         }
         product.stock += item.quantity;
         await product.save();
+        restoredProductIds.push(product._id.toString());
       }
       order.stockRestored = true;
     }
@@ -327,6 +329,13 @@ class OrderService {
     }
 
     await client.flushAll();
+
+    // Broadcast to ALL connected clients so every visitor's product cache
+    // is invalidated immediately — not just the order owner.
+    if (io && restoredProductIds.length > 0) {
+      io.emit("stockRestored", { productIds: restoredProductIds });
+    }
+
     return order.orderStatuses;
   }
 
