@@ -124,7 +124,6 @@ class OrderService {
     await Promise.all([
       sendEmail(responsePostOrder.userId.email, subject, text, html),
       sendEmail(process.env.EMAIL_USER, adminSubject, adminText, html1),
-      sendEmail("pakshipperstore@gmail.com", adminSubject, adminText, html1),
       client.flushAll()
     ]);
 
@@ -238,6 +237,100 @@ class OrderService {
   }
 
   /**
+   * Marks an order as returned, restores stock, notifies the customer.
+   */
+  static async markAsReturned(orderNo, returnReason, io) {
+    const order = await PostOrder.findOne({ orderNo })
+      .populate("userId")
+      .populate("items.productId");
+    if (!order) throw new AppError("Order not found", 404);
+
+    const currentStatus = order.orderStatuses[order.orderStatuses.length - 1]?.status;
+    const allowedStatuses = ["Shipped", "Delivered", "Return Requested"];
+    if (!allowedStatuses.includes(currentStatus)) {
+      throw new AppError(
+        `Cannot mark as returned. Current status is "${currentStatus}". Only Shipped or Delivered orders can be returned.`,
+        400
+      );
+    }
+
+    // Push both status entries
+    if (currentStatus !== "Return Requested") {
+      order.orderStatuses.push({
+        status: "Return Requested",
+        statusDesc: "Customer rejected or returned the parcel.",
+        updatedAt: new Date(),
+      });
+    }
+    order.orderStatuses.push({
+      status: "Returned",
+      statusDesc: `Item returned. Reason: ${returnReason}`,
+      updatedAt: new Date(),
+    });
+
+    order.returnReason = returnReason;
+
+    // Restore stock only once
+    if (!order.stockRestored) {
+      for (const item of order.items) {
+        const product = await Product.findById(
+          item.productId?._id || item.productId
+        );
+        if (!product) continue;
+
+        if (item.variantId) {
+          const variant = product.variants.find(
+            (v) => v._id.toString() === item.variantId.toString()
+          );
+          if (variant) variant.stock += item.quantity;
+        }
+        product.stock += item.quantity;
+        await product.save();
+      }
+      order.stockRestored = true;
+    }
+
+    await order.save();
+
+    // Send email
+    if (order.userId?.email) {
+      const { subject, text, html } = orderStatusUpdateTemplate(order, {
+        status: "Returned",
+        statusDesc: `Your return has been processed. Reason: ${returnReason}`,
+      });
+      await sendEmail(order.userId.email, subject, text, html);
+    }
+
+    // Save in-app notification
+    if (order.userId) {
+      await Notification.create({
+        userId: order.userId._id,
+        title: "Order Returned",
+        message: `Your order #${order.orderNo} has been marked as returned.`,
+        type: "ORDER_UPDATE",
+        metadata: {
+          orderNo: order.orderNo,
+          link: `/profile/order-details?orderId=${order.orderNo}`,
+        },
+      });
+    }
+
+    // Real-time socket notification
+    if (io && order.userId) {
+      io.to(`user_${order.userId._id}`).emit("orderStatusUpdated", {
+        orderNo: order.orderNo,
+        status: "Returned",
+        statusDesc: `Your return has been processed. Reason: ${returnReason}`,
+        message: `Your order #${order.orderNo} has been marked as returned.`,
+        link: `/profile/order-details?orderId=${order.orderNo}`,
+      });
+    }
+
+    await client.flushAll();
+    return order.orderStatuses;
+  }
+
+  /**
    * Deletes an order.
    */
   static async deleteOrder(id) {
@@ -305,6 +398,8 @@ class OrderService {
       address: order.addressId || order.address,
       orderNo: order.orderNo,
       orderStatuses: order.orderStatuses,
+      returnReason: order.returnReason || null,
+      stockRestored: order.stockRestored || false,
       createdAt: order.createdAt
         ? new Intl.DateTimeFormat("en-US", {
           weekday: "long",

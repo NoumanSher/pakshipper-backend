@@ -41,6 +41,11 @@ const updateStatusSchema = z.object({
 const bulkDeleteSchema = z.object({
   ids: z.array(z.string()).min(1),
 });
+
+const markReturnSchema = z.object({
+  orderNo: z.string(),
+  returnReason: z.string().min(1, "Return reason is required"),
+});
 /**
  * @route POST /api/orders
  * @description Creates a new order with product items, handles stock updates, saves address (if provided), and sends confirmation emails.
@@ -430,5 +435,29 @@ export const bulkDeletePostOrders = asyncHandler(async (req, res) => {
   res.status(200).json({
     message: `${deletedCount} orders deleted successfully`,
     deletedCount,
+  });
+});
+
+/**
+ * @function markOrderReturned
+ * @description Marks an order as returned/rejected by the customer.
+ *              Automatically restores product stock and notifies the customer.
+ * @access Admin
+ *
+ * @param {string} req.body.orderNo    - The unique order number
+ * @param {string} req.body.returnReason - Reason for the return (e.g. "Customer Refused")
+ *
+ * @returns {Object} 200 - Updated orderStatuses array
+ * @returns {Object} 400 - Invalid status transition or missing fields
+ * @returns {Object} 404 - Order not found
+ */
+export const markOrderReturned = asyncHandler(async (req, res) => {
+  const io = req.app.get("io");
+  const { orderNo, returnReason } = markReturnSchema.parse(req.body);
+  const orderStatuses = await OrderService.markAsReturned(orderNo, returnReason, io);
+
+  res.status(200).json({
+    message: "Order marked as returned successfully",
+    orderStatuses,
   });
 });

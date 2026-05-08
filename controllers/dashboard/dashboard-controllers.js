@@ -22,16 +22,18 @@ export const getDashboardStats = async (req, res) => {
             // A. Financials & Order status breakdown
             PostOrder.aggregate([
                 {
+                    $addFields: {
+                        latestStatusObj: { $arrayElemAt: ["$orderStatuses", -1] }
+                    }
+                },
+                {
                     $facet: {
                         revenue: [
-                            { $match: { "orderStatuses.status": "Delivered" } },
+                            { $match: { "latestStatusObj.status": "Delivered" } },
                             { $group: { _id: null, totalRevenue: { $sum: "$total" }, count: { $sum: 1 } } }
                         ],
                         statusBreakdown: [
-                            { $unwind: "$orderStatuses" },
-                            { $sort: { "orderStatuses.updatedAt": -1 } },
-                            { $group: { _id: "$_id", latestStatus: { $first: "$orderStatuses.status" } } },
-                            { $group: { _id: "$latestStatus", count: { $sum: 1 } } }
+                            { $group: { _id: "$latestStatusObj.status", count: { $sum: 1 } } }
                         ],
                         totalOrders: [{ $count: "count" }]
                     }
@@ -105,9 +107,22 @@ export const getDashboardStats = async (req, res) => {
             PostOrder.aggregate([
                 { $match: { createdAt: { $gte: thirtyDaysAgo } } },
                 {
+                    $addFields: {
+                        latestStatusObj: { $arrayElemAt: ["$orderStatuses", -1] }
+                    }
+                },
+                {
                     $group: {
                         _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-                        revenue: { $sum: "$total" },
+                        revenue: { 
+                            $sum: { 
+                                $cond: [
+                                    { $in: ["$latestStatusObj.status", ["Cancelled", "Returned", "Return Requested"]] }, 
+                                    0, 
+                                    "$total" 
+                                ] 
+                            } 
+                        },
                         orders: { $sum: 1 }
                     }
                 },
@@ -128,6 +143,8 @@ export const getDashboardStats = async (req, res) => {
                 shipped: ordersStats[0].statusBreakdown.find(s => s._id === "Shipped")?.count || 0,
                 delivered: ordersStats[0].statusBreakdown.find(s => s._id === "Delivered")?.count || 0,
                 cancelled: ordersStats[0].statusBreakdown.find(s => s._id === "Cancelled")?.count || 0,
+                returned: ordersStats[0].statusBreakdown.find(s => s._id === "Returned")?.count || 0,
+                returnRequested: ordersStats[0].statusBreakdown.find(s => s._id === "Return Requested")?.count || 0,
             },
             inventory: {
                 totalProducts: productStats[0].totalProducts[0]?.count || 0,

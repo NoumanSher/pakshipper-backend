@@ -85,7 +85,7 @@ const postOrderSchema = new mongoose.Schema(
     orderStatuses: [{
       status: {
         type: String,
-        enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
+        enum: ["Pending", "Processing", "Shipped", "Delivered", "Cancelled", "Return Requested", "Returned"],
         required: true
       },
       statusDesc: {
@@ -97,6 +97,15 @@ const postOrderSchema = new mongoose.Schema(
         default: Date.now
       }
     }],
+    // Return/Rejection fields
+    returnReason: {
+      type: String,
+      default: null,
+    },
+    stockRestored: {
+      type: Boolean,
+      default: false,
+    },
     paymentStatus: {
       type: String,
       enum: ["Pending", "Paid"],

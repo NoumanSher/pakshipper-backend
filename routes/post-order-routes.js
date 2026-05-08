@@ -4,6 +4,7 @@ import {
   bulkDeletePostOrders,
   createPostOrder,
   deletePostOrder,
+  markOrderReturned,
   orderStatusUpdate,
   searchOrderNoOrders,
   userAddress,
@@ -55,6 +56,13 @@ router.get("/all-orders", authMiddleware, checkPermission("read:orders"), AllOrd
  * @access  Admin
  */
 router.put("/update-status", authMiddleware, checkPermission("write:orders"), orderStatusUpdate);
+
+/**
+ * @route   PUT /api/order/mark-returned
+ * @desc    Mark an order as returned/rejected by the customer (restores stock)
+ * @access  Admin
+ */
+router.put("/mark-returned", authMiddleware, checkPermission("write:orders"), markOrderReturned);
 
 /**
  * @route   DELETE /api/order/delete-order/:id
