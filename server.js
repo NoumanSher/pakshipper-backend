@@ -26,9 +26,10 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 console.log("✅ Allowed CORS Origins:", allowedOrigins);
 
-// Ensure caching is origin-aware to prevent CORS mismatches
+// Ensure caching is origin-aware and force a refresh to clear old "www" vs "non-www" conflicts
 app.use((req, res, next) => {
   res.header("Vary", "Origin");
+  res.header("Cache-Control", "no-cache, no-store, must-revalidate");
   next();
 });
 
