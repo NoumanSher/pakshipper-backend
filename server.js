@@ -26,6 +26,12 @@ const allowedOrigins = process.env.CORS_ORIGINS
 
 console.log("✅ Allowed CORS Origins:", allowedOrigins);
 
+// Ensure caching is origin-aware to prevent CORS mismatches
+app.use((req, res, next) => {
+  res.header("Vary", "Origin");
+  next();
+});
+
 app.use(
   expressSession({
     secret: process.env.SESSION_SECRET || "keyboard cat", // use a strong secret in production
