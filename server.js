@@ -20,7 +20,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
 dotenv.config(); // Load environment variables
-const allowedOrigins = process.env.CORS_ORIGINS?.split(",") || [];
+const allowedOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim()).filter(Boolean)
+  : [];
+
+console.log("✅ Allowed CORS Origins:", allowedOrigins);
 
 app.use(
   expressSession({
@@ -42,13 +46,28 @@ colors.enable();
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 // app.use(cors());
 
+// CORS origin validator function
+const corsOriginValidator = (origin, callback) => {
+  // Allow requests with no origin (mobile apps, curl, Postman, server-to-server)
+  if (!origin) return callback(null, true);
+  if (allowedOrigins.includes(origin)) {
+    return callback(null, true);
+  }
+  console.warn(`🚫 CORS blocked origin: ${origin}`);
+  return callback(new Error(`CORS policy: Origin '${origin}' is not allowed.`));
+};
+
 // Only Allowed URLs
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: corsOriginValidator,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    credentials: true,
   })
 );
+
+// Handle preflight OPTIONS requests for all routes
+app.options("*", cors({ origin: corsOriginValidator, credentials: true }));
 // ✅ Raw body parser for Stripe webhook
 app.post(
   "/api/order/webhook/stripe",
