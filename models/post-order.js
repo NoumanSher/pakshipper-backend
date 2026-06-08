@@ -12,7 +12,7 @@ const counterSchema = new mongoose.Schema({
   },
 });
 
-const Counter = mongoose.model("Counter", counterSchema);
+// const Counter = mongoose.model("Counter", counterSchema); // Removed for dynamic compilation
 
 const postOrderSchema = new mongoose.Schema(
   {
@@ -165,7 +165,8 @@ const postOrderSchema = new mongoose.Schema(
 // Generate unique order number
 postOrderSchema.pre("save", async function (next) {
   if (!this.orderNo) {
-    const counter = await Counter.findOneAndUpdate(
+    const CounterModel = this.constructor.db.model("Counter");
+    const counter = await CounterModel.findOneAndUpdate(
       { key: "orderNo" },
       { $inc: { seq: 1 } },
       { new: true, upsert: true }
@@ -185,4 +186,5 @@ postOrderSchema.pre("save", async function (next) {
   next();
 });
 
+export { postOrderSchema, counterSchema };
 export default mongoose.model("PostOrder", postOrderSchema);

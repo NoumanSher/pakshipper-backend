@@ -40,6 +40,8 @@ export const createProduct = asyncHandler(async (req, res, next) => {
   const validatedData = productSchema.parse(req.body);
 
   const savedProduct = await ProductService.createProduct(
+    req.models,
+    req.tenantConfig,
     validatedData,
     req.user.id || req.user._id
   );
@@ -61,7 +63,7 @@ export const getProductById = asyncHandler(async (req, res, next) => {
     req.user.permissions?.includes('read:products')
   );
 
-  const response = await ProductService.getProductById(id, isAdminRequest);
+  const response = await ProductService.getProductById(req.models, req.tenantConfig, id, isAdminRequest);
 
   res.status(200).json(response);
 });
@@ -69,7 +71,7 @@ export const getProductById = asyncHandler(async (req, res, next) => {
 // Product by Slug
 export const getProductBySlug = asyncHandler(async (req, res, next) => {
   const { slug } = req.params;
-  const response = await ProductService.getProductBySlug(slug);
+  const response = await ProductService.getProductBySlug(req.models, req.tenantConfig, slug);
   res.status(200).json(response);
 });
 // Delete Product
@@ -77,7 +79,7 @@ export const deleteProduct = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
   const { mode } = req.query; // 'soft' or 'hard'
 
-  const response = await ProductService.deleteProduct(id, mode);
+  const response = await ProductService.deleteProduct(req.models, req.tenantConfig, id, mode);
 
   res.status(200).json(response);
 });
@@ -101,7 +103,7 @@ export const getAllProducts = asyncHandler(async (req, res, next) => {
     req.user.permissions?.includes('read:products')
   );
 
-  const response = await ProductService.getAllProducts({
+  const response = await ProductService.getAllProducts(req.models, req.tenantConfig, {
     parentCategoryID,
     childCategoryID,
     parentCategorySlug,
@@ -125,7 +127,7 @@ export const updateProduct = asyncHandler(async (req, res, next) => {
   // Validate request body
   const validatedData = productSchema.partial().parse(req.body);
 
-  const response = await ProductService.updateProduct(id, validatedData, userId);
+  const response = await ProductService.updateProduct(req.models, req.tenantConfig, id, validatedData, userId);
 
   res.status(200).json(response);
 });
@@ -143,7 +145,7 @@ export const getProductRelatedInfo = asyncHandler(async (req, res, next) => {
     productId // To exclude the current product
   } = req.query;
 
-  const response = await ProductService.getProductRelatedInfo({
+  const response = await ProductService.getProductRelatedInfo(req.models, req.tenantConfig, {
     parentCategorySlug,
     childCategorySlug,
     categoryId,

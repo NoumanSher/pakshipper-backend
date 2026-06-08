@@ -1,5 +1,7 @@
 import cloudinary from "../../utils/cloudinary.js";
 import { adminConfig } from "../../utils/cloudinaryAdmin.js";
+import { getCloudinaryConfig } from "../../services/cloudinaryFactory.js";
+import { flushTenantCache } from "../../config/redis/redisHelpers.js";
 import client from "../../config/redis/redisClient.js";
 
 /**
@@ -19,12 +21,14 @@ export const deleteSingleImage = async (req, res) => {
       });
     }
 
+    const config = getCloudinaryConfig(req.tenantConfig, 'merchant') || adminConfig;
+
     // Delete from Cloudinary
-    const result = await cloudinary.uploader.destroy(publicId, adminConfig);
+    const result = await cloudinary.uploader.destroy(publicId, config);
 
     if (result.result === "ok" || result.result === "not found") {
       // Invalidate cache
-      await client.flushAll();
+      await flushTenantCache(req.tenantConfig.tenantId);
 
       res.status(200).json({
         success: true,
@@ -63,11 +67,13 @@ export const deleteBulkImages = async (req, res) => {
       });
     }
 
+    const config = getCloudinaryConfig(req.tenantConfig, 'merchant') || adminConfig;
+
     // Delete multiple images from Cloudinary
-    const result = await cloudinary.api.delete_resources(publicIds, adminConfig);
+    const result = await cloudinary.api.delete_resources(publicIds, config);
 
     // Invalidate cache
-    await client.flushAll();
+    await flushTenantCache(req.tenantConfig.tenantId);
 
     res.status(200).json({
       success: true,

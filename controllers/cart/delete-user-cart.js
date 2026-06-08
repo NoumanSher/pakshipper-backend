@@ -1,4 +1,3 @@
-import UserCart from "../../models/UserCart.js";
 
 /**
  * @function deleteCartItem
@@ -38,6 +37,7 @@ import UserCart from "../../models/UserCart.js";
  */
 export const deleteCartItem = async (req, res) => {
     try {
+        const { UserCart } = req.models;
         const { cartItemId, userId } = req.body;
 
         if (!cartItemId || !userId) {

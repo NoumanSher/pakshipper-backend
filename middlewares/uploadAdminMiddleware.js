@@ -1,21 +1,24 @@
 import multer from 'multer';
 import cloudinary from '../utils/cloudinary.js';
 import { adminConfig } from '../utils/cloudinaryAdmin.js';
+import { getCloudinaryConfig } from '../services/cloudinaryFactory.js';
 import streamifier from 'streamifier';
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-const uploadToCloudinaryAdmin = (buffer, folder = 'ecommerce') => {
+const uploadToCloudinaryAdmin = (buffer, folder = 'ecommerce', cloudinaryConfig = null) => {
   return new Promise((resolve, reject) => {
+    // Merge provided config with folder and presets
+    const uploadOptions = {
+      folder: folder,
+      quality: 'auto',
+      fetch_format: 'auto',
+      ...(cloudinaryConfig || adminConfig) // Fallback to adminConfig from environment if no tenant config
+    };
+
     const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: folder,
-        ...adminConfig, // Use Admin credentials
-        // Optional optimization parameters
-        quality: 'auto',
-        fetch_format: 'auto',
-      },
+      uploadOptions,
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
@@ -42,8 +45,11 @@ const uploadAdminMiddleware = (fieldName = 'images', folder = 'ecommerce') => {
           });
         }
 
+        // Get tenant-specific Cloudinary configuration
+        const cloudinaryConfig = getCloudinaryConfig(req.tenantConfig, 'merchant');
+
         const uploadPromises = req.files.map((file) =>
-          uploadToCloudinaryAdmin(file.buffer, folder)
+          uploadToCloudinaryAdmin(file.buffer, folder, cloudinaryConfig)
         );
         const results = await Promise.all(uploadPromises);
 

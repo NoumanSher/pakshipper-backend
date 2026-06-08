@@ -1,20 +1,16 @@
-import PostOrder from "../models/post-order.js";
-import Product from "../models/products.js";
-import Address from "../models/address.js";
-import User from "../models/user-schema.js";
-import { sendEmail } from "./email-service.js";
+import { createEmailService } from "./emailFactory.js";
 import { orderConfirmationTemplate } from "../Templates/orderConfirmationTemplate.js";
 import { adminOrderNotificationTemplate } from "../Templates/adminOrderNotificationTemplate.js";
 import { orderStatusUpdateTemplate } from "../Templates/orderStatusUpdateTemplate.js";
-import client from "../config/redis/redisClient.js";
+import { flushTenantCache } from "../config/redis/redisHelpers.js";
 import AppError from "../utils/AppError.js";
-import Notification from "../models/notification.js";
 
 class OrderService {
   /**
    * Creates a new order.
    */
-  static async createOrder(orderData, io) {
+  static async createOrder(models, tenantConfig, orderData, io) {
+    const { PostOrder, Product, Address, User } = models;
     const {
       userId,
       items,
@@ -121,14 +117,16 @@ class OrderService {
     const { html, subject, text } = orderConfirmationTemplate(responsePostOrder, transformedResponse);
     const { html: html1, subject: adminSubject, text: adminText } = adminOrderNotificationTemplate(responsePostOrder, transformedResponse);
 
+    const emailService = createEmailService(tenantConfig.email);
+    
     await Promise.all([
-      sendEmail(responsePostOrder.userId.email, subject, text, html),
-      sendEmail(process.env.EMAIL_USER, adminSubject, adminText, html1),
-      client.flushAll()
+      emailService.sendEmail(responsePostOrder.userId.email, subject, text, html),
+      emailService.sendEmail(tenantConfig.email.user, adminSubject, adminText, html1),
+      flushTenantCache(tenantConfig.tenantId)
     ]);
 
     if (io) {
-      io.to("admins").emit("newOrder", {
+      io.to(`${tenantConfig.tenantId}:admins`).emit("newOrder", {
         message: "A new order has been placed!",
         orderId: transformedResponse.orderId,
         orderNo: transformedResponse.orderNo,
@@ -142,7 +140,8 @@ class OrderService {
   /**
    * Fetches all orders for a user.
    */
-  static async getUserOrders(userId) {
+  static async getUserOrders(models, userId) {
+    const { PostOrder } = models;
     const userOrders = await PostOrder.find({ userId })
       .populate("userId", "username email mobilePhone")
       .populate("items.productId", "productName variants")
@@ -158,7 +157,8 @@ class OrderService {
   /**
    * Fetches all orders.
    */
-  static async getAllOrders() {
+  static async getAllOrders(models) {
+    const { PostOrder } = models;
     const userOrders = await PostOrder.find()
       .populate("userId", "username email mobilePhone")
       .populate("items.productId", "productName variants")
@@ -174,7 +174,8 @@ class OrderService {
   /**
    * Searches for an order by order number.
    */
-  static async getOrderByNo(orderNo) {
+  static async getOrderByNo(models, orderNo) {
+    const { PostOrder } = models;
     const order = await PostOrder.findOne({ orderNo })
       .populate("userId", "username email mobilePhone")
       .populate("items.productId", "productName variants")
@@ -191,7 +192,8 @@ class OrderService {
   /**
    * Updates order status.
    */
-  static async updateOrderStatus(orderNo, status, statusDesc, io) {
+  static async updateOrderStatus(models, tenantConfig, orderNo, status, statusDesc, io) {
+    const { PostOrder, Notification } = models;
     const order = await PostOrder.findOne({ orderNo }).populate("userId");
     if (!order) throw new AppError("Order not found", 404);
 
@@ -205,7 +207,8 @@ class OrderService {
 
     if (order.userId && order.userId.email) {
       const { subject, text, html } = orderStatusUpdateTemplate(order, { status, statusDesc });
-      await sendEmail(order.userId.email, subject, text, html);
+      const emailService = createEmailService(tenantConfig.email);
+      await emailService.sendEmail(order.userId.email, subject, text, html);
     }
 
     // Save notification to database
@@ -224,7 +227,7 @@ class OrderService {
 
     // Emit real-time notification to the user
     if (io && order.userId) {
-      io.to(`user_${order.userId._id}`).emit("orderStatusUpdated", {
+      io.to(`${tenantConfig.tenantId}:user_${order.userId._id}`).emit("orderStatusUpdated", {
         orderNo: order.orderNo,
         status: status,
         statusDesc: statusDesc,
@@ -239,7 +242,8 @@ class OrderService {
   /**
    * Marks an order as returned, restores stock, notifies the customer.
    */
-  static async markAsReturned(orderNo, returnReason, io) {
+  static async markAsReturned(models, tenantConfig, orderNo, returnReason, io) {
+    const { PostOrder, Product, Notification } = models;
     const order = await PostOrder.findOne({ orderNo })
       .populate("userId")
       .populate("items.productId");
@@ -300,7 +304,8 @@ class OrderService {
         status: "Returned",
         statusDesc: `Your return has been processed. Reason: ${returnReason}`,
       });
-      await sendEmail(order.userId.email, subject, text, html);
+      const emailService = createEmailService(tenantConfig.email);
+      await emailService.sendEmail(order.userId.email, subject, text, html);
     }
 
     // Save in-app notification
@@ -319,7 +324,7 @@ class OrderService {
 
     // Real-time socket notification
     if (io && order.userId) {
-      io.to(`user_${order.userId._id}`).emit("orderStatusUpdated", {
+      io.to(`${tenantConfig.tenantId}:user_${order.userId._id}`).emit("orderStatusUpdated", {
         orderNo: order.orderNo,
         status: "Returned",
         statusDesc: `Your return has been processed. Reason: ${returnReason}`,
@@ -328,12 +333,12 @@ class OrderService {
       });
     }
 
-    await client.flushAll();
+    await flushTenantCache(tenantConfig.tenantId);
 
-    // Broadcast to ALL connected clients so every visitor's product cache
+    // Broadcast to this tenant's storefront visitors so their product cache
     // is invalidated immediately — not just the order owner.
     if (io && restoredProductIds.length > 0) {
-      io.emit("stockRestored", { productIds: restoredProductIds });
+      io.to(`${tenantConfig.tenantId}:public`).emit("stockRestored", { productIds: restoredProductIds });
     }
 
     return order.orderStatuses;
@@ -342,7 +347,8 @@ class OrderService {
   /**
    * Deletes an order.
    */
-  static async deleteOrder(id) {
+  static async deleteOrder(models, id) {
+    const { PostOrder } = models;
     const deletedOrder = await PostOrder.findByIdAndDelete(id);
     if (!deletedOrder) throw new AppError("Order not found", 404);
     return true;
@@ -351,7 +357,8 @@ class OrderService {
   /**
    * Fetches the default address for a user.
    */
-  static async getUserDefaultAddress(userId) {
+  static async getUserDefaultAddress(models, userId) {
+    const { Address } = models;
     const userAddress = await Address.findOne({ userId, isFirst: true });
     if (!userAddress) throw new AppError("Address with isFirst: true not found.", 404);
     return userAddress;
@@ -360,7 +367,8 @@ class OrderService {
   /**
    * Bulk deletes orders.
    */
-  static async bulkDeleteOrders(ids) {
+  static async bulkDeleteOrders(models, ids) {
+    const { PostOrder } = models;
     const result = await PostOrder.deleteMany({ _id: { $in: ids } });
     if (result.deletedCount === 0) throw new AppError("No orders found to delete.", 404);
     return result.deletedCount;

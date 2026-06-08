@@ -54,4 +54,5 @@ const addressSchema = new mongoose.Schema(
   }
 );
 
+export { addressSchema };
 export default mongoose.model("Address", addressSchema);

@@ -17,7 +17,7 @@ const adminCreateUserSchema = z.object({
  */
 export const adminCreateUser = asyncHandler(async (req, res) => {
   const validatedData = adminCreateUserSchema.parse(req.body);
-  const populatedUser = await UserService.adminCreateUser(validatedData);
+  const populatedUser = await UserService.adminCreateUser(req.models, validatedData);
 
   res.status(201).json({
     message: "User created successfully by admin",

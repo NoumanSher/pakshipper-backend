@@ -15,7 +15,7 @@ const router = express.Router();
 router.post(
     "/upload-images",
     authMiddleware,
-    checkPermission("write:products"),
+    checkPermission("products", "write"),
     uploadAdminMiddleware("images", "ecommerce"),
     (req, res) => {
         try {

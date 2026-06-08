@@ -1,14 +1,12 @@
-import ParentCategories from "../models/categories.js";
-import ChildCategories from "../models/child-categories.js";
-import Product from "../models/products.js";
-import client from "../config/redis/redisClient.js";
+import { flushTenantCache } from "../config/redis/redisHelpers.js";
 import AppError from "../utils/AppError.js";
 
 class CategoryService {
   /**
    * Create a parent category.
    */
-  static async createParentCategory(data) {
+  static async createParentCategory(models, tenantId, data) {
+    const { ParentCategories } = models;
     const { name, slug, description, recommendedCategories } = data;
 
     const existingCategory = await ParentCategories.findOne({ slug });
@@ -16,7 +14,7 @@ class CategoryService {
 
     const newCategory = new ParentCategories({ name, slug, description, recommendedCategories });
     await newCategory.save();
-    await this._flushCache();
+    await this._flushCache(tenantId);
 
     return newCategory;
   }
@@ -24,12 +22,13 @@ class CategoryService {
   /**
    * Create a child category.
    */
-  static async createChildCategory(data) {
+  static async createChildCategory(models, tenantId, data) {
+    const { ChildCategories } = models;
     const { name, slug, description, parentCategory } = data;
 
     const childCategory = new ChildCategories({ name, slug, description, parentCategory });
     await childCategory.save();
-    await this._flushCache();
+    await this._flushCache(tenantId);
 
     return childCategory;
   }
@@ -37,7 +36,8 @@ class CategoryService {
   /**
    * Fetch a parent category by ID or slug.
    */
-  static async getParentCategory(idOrSlug) {
+  static async getParentCategory(models, idOrSlug) {
+    const { ParentCategories } = models;
     const query = idOrSlug.match(/^[0-9a-fA-F]{24}$/) ? { _id: idOrSlug } : { slug: idOrSlug };
     const category = await ParentCategories.findOne(query);
     if (!category) throw new AppError("Parent Category not found", 404);
@@ -47,7 +47,8 @@ class CategoryService {
   /**
    * Fetch a child category by ID or slug.
    */
-  static async getChildCategory(idOrSlug) {
+  static async getChildCategory(models, idOrSlug) {
+    const { ChildCategories } = models;
     const query = idOrSlug.match(/^[0-9a-fA-F]{24}$/) ? { _id: idOrSlug } : { slug: idOrSlug };
     const category = await ChildCategories.findOne(query);
     if (!category) throw new AppError("Child Category not found", 404);
@@ -57,21 +58,24 @@ class CategoryService {
   /**
    * Fetch all parent categories.
    */
-  static async getAllParentCategories() {
+  static async getAllParentCategories(models) {
+    const { ParentCategories } = models;
     return await ParentCategories.find().sort({ updatedAt: -1 });
   }
 
   /**
    * Fetch all child categories.
    */
-  static async getAllChildCategories() {
+  static async getAllChildCategories(models) {
+    const { ChildCategories } = models;
     return await ChildCategories.find().populate("parentCategory", "name slug").sort({ updatedAt: -1 });
   }
 
   /**
    * Fetch child categories by parent ID.
    */
-  static async getChildCategoriesByParentId(parentCategoryId) {
+  static async getChildCategoriesByParentId(models, parentCategoryId) {
+    const { ParentCategories, ChildCategories } = models;
     const parentCategory = await ParentCategories.findById(parentCategoryId).lean();
     if (!parentCategory) throw new AppError("Parent category not found", 404);
 
@@ -85,7 +89,8 @@ class CategoryService {
   /**
    * Fetch all parent categories with their child categories.
    */
-  static async getParentCategoriesWithChildren() {
+  static async getParentCategoriesWithChildren(models) {
+    const { ParentCategories } = models;
     return await ParentCategories.aggregate([
       { $sort: { createdAt: -1 } },
       {
@@ -112,7 +117,8 @@ class CategoryService {
   /**
    * Fetch all categories (Parent + Child).
    */
-  static async getAllCategories() {
+  static async getAllCategories(models) {
+    const { ParentCategories, ChildCategories } = models;
     const [parents, children] = await Promise.all([
       ParentCategories.find().sort({ updatedAt: -1 }),
       ChildCategories.find().populate("parentCategory", "name slug").sort({ updatedAt: -1 })
@@ -123,7 +129,8 @@ class CategoryService {
   /**
    * Update a parent category.
    */
-  static async updateParentCategory(id, data) {
+  static async updateParentCategory(models, tenantId, id, data) {
+    const { ParentCategories } = models;
     if (data.slug) {
       const existingCategory = await ParentCategories.findOne({ slug: data.slug });
       if (existingCategory && existingCategory._id.toString() !== id) {
@@ -133,14 +140,15 @@ class CategoryService {
 
     const updatedCategory = await ParentCategories.findByIdAndUpdate(id, data, { new: true, runValidators: true });
     if (!updatedCategory) throw new AppError("Parent Category not found", 404);
-    await this._flushCache();
+    await this._flushCache(tenantId);
     return updatedCategory;
   }
 
   /**
    * Update a child category.
    */
-  static async updateChildCategory(id, data) {
+  static async updateChildCategory(models, tenantId, id, data) {
+    const { ChildCategories } = models;
     if (data.slug) {
       const existingCategory = await ChildCategories.findOne({ slug: data.slug });
       if (existingCategory && existingCategory._id.toString() !== id) {
@@ -150,14 +158,15 @@ class CategoryService {
 
     const updatedCategory = await ChildCategories.findByIdAndUpdate(id, data, { new: true, runValidators: true });
     if (!updatedCategory) throw new AppError("Child Category not found", 404);
-    await this._flushCache();
+    await this._flushCache(tenantId);
     return updatedCategory;
   }
 
   /**
    * Delete a parent category and optionally its child categories.
    */
-  static async deleteParentCategory(id) {
+  static async deleteParentCategory(models, tenantId, id) {
+    const { ParentCategories, ChildCategories, Product } = models;
     // 1. Check if there are any child categories linked to this parent
     const linkedChildCategoriesCount = await ChildCategories.countDocuments({ parentCategory: id });
     if (linkedChildCategoriesCount > 0) {
@@ -173,14 +182,15 @@ class CategoryService {
     const deletedCategory = await ParentCategories.findByIdAndDelete(id);
     if (!deletedCategory) throw new AppError("Parent Category not found", 404);
     
-    await this._flushCache();
+    await this._flushCache(tenantId);
     return deletedCategory;
   }
 
   /**
    * Delete a child category.
    */
-  static async deleteChildCategory(id) {
+  static async deleteChildCategory(models, tenantId, id) {
+    const { ChildCategories, Product } = models;
     // 1. Check if there are any products linked to this child category
     const linkedProductsCount = await Product.countDocuments({ childCategoryID: id });
     if (linkedProductsCount > 0) {
@@ -189,16 +199,17 @@ class CategoryService {
 
     const deletedCategory = await ChildCategories.findByIdAndDelete(id);
     if (!deletedCategory) throw new AppError("Child Category not found", 404);
-    await this._flushCache();
+    await this._flushCache(tenantId);
     return deletedCategory;
   }
 
   /**
-   * Helper to flush cache.
+   * Helper to flush cache for tenant.
    */
-  static async _flushCache() {
+  static async _flushCache(tenantId) {
+    if (!tenantId) return;
     try {
-      await client.flushAll();
+      await flushTenantCache(tenantId);
     } catch (error) {
       console.error("Redis flush error:", error);
     }

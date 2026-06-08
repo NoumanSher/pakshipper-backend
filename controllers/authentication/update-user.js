@@ -20,7 +20,7 @@ const updateUserSchema = z.object({
 export const updateUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const validatedData = updateUserSchema.parse(req.body);
-  const updatedUser = await UserService.updateUser(id, validatedData);
+  const updatedUser = await UserService.updateUser(req.models, id, validatedData);
 
   res.status(200).json({ message: "User updated successfully", data: updatedUser });
 });

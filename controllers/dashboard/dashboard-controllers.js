@@ -1,10 +1,8 @@
-import PostOrder from "../../models/post-order.js";
-import Product from "../../models/products.js";
-import User from "../../models/user-schema.js";
-import Review from "../../models/Review.js";
+
 
 export const getDashboardStats = async (req, res) => {
     try {
+        const { PostOrder, Product, User, Review } = req.models;
         // 1. Time-based filters (Last 30 days for trends)
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

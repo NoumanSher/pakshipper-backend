@@ -17,7 +17,7 @@ const forgotPasswordSchema = z.object({
  */
 export const forgetPassword = asyncHandler(async (req, res) => {
   const { email } = forgotPasswordSchema.parse(req.body);
-  await AuthService.forgotPassword(email);
+  await AuthService.forgotPassword(req.models, req.tenantConfig, email);
 
   res.status(200).json({
     message: "Password reset token sent to your email",

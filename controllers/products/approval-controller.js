@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Product from "../../models/products.js";
+import { getTenantRedisKey, flushTenantCache } from "../../config/redis/redisHelpers.js";
 import client from "../../config/redis/redisClient.js";
 
 /**
@@ -9,6 +9,7 @@ import client from "../../config/redis/redisClient.js";
  */
 export const approveProduct = async (req, res) => {
     try {
+        const { Product } = req.models;
         const { id } = req.params;
         const { comments } = req.body;
         const approverId = req.user._id || req.user.id;
@@ -44,7 +45,7 @@ export const approveProduct = async (req, res) => {
         });
 
         await product.save();
-        await client.flushAll(); // Clear cache
+        await flushTenantCache(req.tenantConfig.tenantId); // Clear cache
 
         // TODO: Emit socket notification to product creator
         // io.to(product.createdBy.toString()).emit('product:approved', {...});
@@ -72,6 +73,7 @@ export const approveProduct = async (req, res) => {
  */
 export const rejectProduct = async (req, res) => {
     try {
+        const { Product } = req.models;
         const { id } = req.params;
         const { reason, comments } = req.body;
         const rejecterId = req.user._id || req.user.id;
@@ -115,7 +117,7 @@ export const rejectProduct = async (req, res) => {
         });
 
         await product.save();
-        await client.flushAll(); // Clear cache
+        await flushTenantCache(req.tenantConfig.tenantId); // Clear cache
 
         // TODO: Emit socket notification to product creator
         // io.to(product.createdBy.toString()).emit('product:rejected', {...});
@@ -143,6 +145,7 @@ export const rejectProduct = async (req, res) => {
  */
 export const resubmitProduct = async (req, res) => {
     try {
+        const { Product } = req.models;
         const { id } = req.params;
         const userId = req.user._id || req.user.id;
 
@@ -174,7 +177,7 @@ export const resubmitProduct = async (req, res) => {
         });
 
         await product.save();
-        await client.flushAll(); // Clear cache
+        await flushTenantCache(req.tenantConfig.tenantId); // Clear cache
 
         // TODO: Emit socket notification to approvers
         // io.to('approvers').emit('product:pending-approval', {...});
@@ -201,13 +204,15 @@ export const resubmitProduct = async (req, res) => {
  */
 export const getPendingProducts = async (req, res) => {
     try {
+        const { Product } = req.models;
         const { page = 1, limit = 20, sort = 'createdAt' } = req.query;
 
         const pageNumber = parseInt(page, 10) || 1;
         const limitNumber = parseInt(limit, 10) || 20;
         const skip = (pageNumber - 1) * limitNumber;
 
-        const cacheKey = `products::pending::${pageNumber}::${limitNumber}`;
+        const rawKey = `products::pending::${pageNumber}::${limitNumber}`;
+        const cacheKey = getTenantRedisKey(req.tenantConfig.tenantId, rawKey);
 
         // Check cache
         const cached = await client.get(cacheKey);
@@ -257,6 +262,7 @@ export const getPendingProducts = async (req, res) => {
  */
 export const getApprovalHistory = async (req, res) => {
     try {
+        const { Product } = req.models;
         const { id } = req.params;
 
         if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -293,6 +299,7 @@ export const getApprovalHistory = async (req, res) => {
  */
 export const autoApproveExistingProducts = async (req, res) => {
     try {
+        const { Product } = req.models;
         const adminUserId = req.user._id || req.user.id;
 
         const result = await Product.updateMany(
@@ -320,7 +327,7 @@ export const autoApproveExistingProducts = async (req, res) => {
             }
         );
 
-        await client.flushAll(); // Clear all cache
+        await flushTenantCache(req.tenantConfig.tenantId); // Clear all cache
 
         res.status(200).json({
             success: true,

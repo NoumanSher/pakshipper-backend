@@ -1,10 +1,13 @@
+import dotenv from "dotenv";
+dotenv.config(); // Load environment variables first before other imports!
+
 import express from "express";
 import cors from "cors";
 import path from "path";
 import colors from "colors";
 import { fileURLToPath } from "url";
-import ConnectDataBase from "./config/connection.js"; // MongoDB connection
-import dotenv from "dotenv";
+import { connectToPlatformDB, getPlatformConnection } from "./config/platformConnection.js"; // Platform MongoDB connection
+import NodeCache from "node-cache";
 import morgan from "morgan";
 import { createServer } from "http";
 import { Server as SocketIOServer } from "socket.io";
@@ -12,6 +15,7 @@ import { Server as SocketIOServer } from "socket.io";
 import connectedRoutes from "./routes/ConnectedRoutes.js";
 import { mainServerRunnig } from "./controllers/testController.js";
 import { stripeWebhook } from "./controllers/stripe/stripeController.js";
+import { tenantResolver } from "./middlewares/tenantResolver.js";
 import expressSession from "express-session";
 import passport from "passport"; // assuming you're using ES Modules
 import { globalErrorHandler } from "./middlewares/errorMiddleware.js";
@@ -19,12 +23,7 @@ import { globalErrorHandler } from "./middlewares/errorMiddleware.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
-dotenv.config(); // Load environment variables
-const allowedOrigins = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(",").map((o) => o.trim().replace(/\/$/, "")).filter(Boolean)
-  : [];
-
-console.log("✅ Allowed CORS Origins:", allowedOrigins);
+const corsCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 // Ensure caching is origin-aware and force a refresh to clear old "www" vs "non-www" conflicts
 app.use((req, res, next) => {
@@ -53,19 +52,9 @@ colors.enable();
 app.use("/assets", express.static(path.join(__dirname, "assets")));
 // app.use(cors());
 
-// CORS origin validator function
+// CORS origin validator function (Temporarily bypassed to allow all origins during development)
 const corsOriginValidator = (origin, callback) => {
-  // Allow requests with no origin (mobile apps, curl, Postman, server-to-server)
-  if (!origin) return callback(null, true);
-
-  // Normalize origin by removing trailing slash
-  const normalizedOrigin = origin.replace(/\/$/, "");
-
-  if (allowedOrigins.includes(normalizedOrigin)) {
-    return callback(null, true);
-  }
-  console.warn(`🚫 CORS blocked origin: ${origin}`);
-  return callback(new Error(`CORS policy: Origin '${origin}' is not allowed.`));
+  return callback(null, true);
 };
 
 // Only Allowed URLs
@@ -88,6 +77,9 @@ app.post(
 app.use(express.json());
 app.use(morgan("dev"));
 
+// Apply Tenant Resolver middleware
+app.use(tenantResolver);
+
 // Attach routes
 connectedRoutes(app);
 
@@ -100,7 +92,7 @@ app.use(globalErrorHandler);
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: {
-    origin: allowedOrigins, // Replace with your actual frontend origins
+    origin: corsOriginValidator, // Dynamic tenant origins
     methods: ["GET", "POST"],
     // credentials: true,
   },
@@ -115,16 +107,26 @@ io.on("connection", (socket) => {
   console.log("🟢 New client connected:", socket.id);
 
   // Admin can register to receive order events
-  socket.on("registerAdmin", () => {
-    socket.join("admins");
-    console.log("🛡️ Admin registered:", socket.id);
+  socket.on("registerAdmin", (tenantId) => {
+    if (tenantId) {
+      socket.join(`${tenantId}:admins`);
+      console.log(`🛡️ Admin registered for tenant ${tenantId}:`, socket.id);
+    }
   });
 
   // User can register to receive personal order updates
-  socket.on("registerUser", (userId) => {
-    if (userId) {
-      socket.join(`user_${userId}`);
-      console.log(`👤 User registered to room user_${userId}:`, socket.id);
+  socket.on("registerUser", ({ tenantId, userId }) => {
+    if (tenantId && userId) {
+      socket.join(`${tenantId}:user_${userId}`);
+      console.log(`👤 User registered to room ${tenantId}:user_${userId}:`, socket.id);
+    }
+  });
+
+  // Public storefront visitors register for storefront updates (e.g. stock updates)
+  socket.on("registerStorefront", (tenantId) => {
+    if (tenantId) {
+      socket.join(`${tenantId}:public`);
+      console.log(`🛍️ Storefront visitor registered for tenant ${tenantId}:`, socket.id);
     }
   });
 
@@ -135,7 +137,17 @@ io.on("connection", (socket) => {
 
 // Connect to the database and then start server
 try {
-  await ConnectDataBase();
+  await connectToPlatformDB();
+
+  // Temporary debug log to find registered tenant domains
+  try {
+    const platformConn = getPlatformConnection();
+    const Tenant = platformConn.model("Tenant");
+    const tenants = await Tenant.find({}).lean();
+    console.log("🔍 [DEBUG] Current Tenants in DB:", JSON.stringify(tenants.map(t => ({ name: t.name, slug: t.slug, domains: t.domains })), null, 2));
+  } catch (dbErr) {
+    console.error("🔍 [DEBUG] Failed to log tenants:", dbErr);
+  }
 
   const port = process.env.PORT || 3000;
   httpServer.listen(port, () => {

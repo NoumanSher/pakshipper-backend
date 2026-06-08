@@ -1,4 +1,3 @@
-import UserCart from "../../models/UserCart.js";
 
 /**
  * @function userCartItems
@@ -32,6 +31,7 @@ import UserCart from "../../models/UserCart.js";
  */
 export const userCartItems = async (req, res) => {
   try {
+    const { UserCart } = req.models;
     const { userId } = req.params;
 
     // Find all cart items for the user and populate the product details

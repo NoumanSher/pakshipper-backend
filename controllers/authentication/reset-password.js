@@ -21,7 +21,7 @@ const resetPasswordSchema = z.object({
  */
 export const resetPassword = asyncHandler(async (req, res) => {
   const { token, newPassword, confirmPassword } = resetPasswordSchema.parse(req.body);
-  await AuthService.resetPassword(token, newPassword, confirmPassword);
+  await AuthService.resetPassword(req.models, req.tenantConfig, token, newPassword, confirmPassword);
 
   res.status(200).json({ message: "Password reset successfully" });
 });

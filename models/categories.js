@@ -26,4 +26,5 @@ const ParentCategoriesSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
-export default mongoose.model("ParentCategories",ParentCategoriesSchema)
+export { ParentCategoriesSchema };
+export default mongoose.model("ParentCategories", ParentCategoriesSchema);

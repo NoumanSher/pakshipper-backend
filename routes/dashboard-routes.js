@@ -6,6 +6,6 @@ import checkPermission from "../middlewares/permissionMiddleWare.js";
 const router = express.Router();
 
 // Admin only dashboard route
-router.get("/", authMiddleware, checkPermission("read:dashboard"), getDashboardStats);
+router.get("/", authMiddleware, checkPermission("analytics", "read"), getDashboardStats);
 
 export default router;

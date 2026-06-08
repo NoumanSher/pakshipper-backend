@@ -87,4 +87,5 @@ ReviewSchema.index({ userId: 1 });
 // Prevent duplicate reviews from same user for same product
 ReviewSchema.index({ userId: 1, productId: 1 }, { unique: true });
 
+export { ReviewSchema };
 export default mongoose.model("Review", ReviewSchema);

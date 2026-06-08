@@ -1,14 +1,20 @@
 import multer from 'multer';
 import cloudinary from '../utils/cloudinary.js';
+import { getCloudinaryConfig } from '../services/cloudinaryFactory.js';
 import streamifier from 'streamifier';
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
-const uploadToCloudinary = (buffer) => {
+const uploadToCloudinary = (buffer, cloudinaryConfig = null) => {
   return new Promise((resolve, reject) => {
+    const uploadOptions = {
+      folder: 'uploads',
+      ...(cloudinaryConfig || {}) // Fallback to environment variables if no tenant config
+    };
+
     const stream = cloudinary.uploader.upload_stream(
-      { folder: 'uploads' },
+      uploadOptions,
       (error, result) => {
         if (error) return reject(error);
         resolve(result);
@@ -30,12 +36,14 @@ const uploadMiddleware = (fieldName, isMultiple = false) => {
     handler,
     async (req, res, next) => {
       try {
+        const cloudinaryConfig = getCloudinaryConfig(req.tenantConfig, 'customer');
+
         if (isMultiple) {
           if (!req.files || req.files.length === 0) {
             return res.status(400).json({ success: false, message: 'No files uploaded' });
           }
 
-          const uploadPromises = req.files.map((file) => uploadToCloudinary(file.buffer));
+          const uploadPromises = req.files.map((file) => uploadToCloudinary(file.buffer, cloudinaryConfig));
           const results = await Promise.all(uploadPromises);
           req.cloudinaryUrls = results.map((r) => r.secure_url);
         } else {
@@ -43,7 +51,7 @@ const uploadMiddleware = (fieldName, isMultiple = false) => {
             return res.status(400).json({ success: false, message: 'No file uploaded' });
           }
 
-          const result = await uploadToCloudinary(req.file.buffer);
+          const result = await uploadToCloudinary(req.file.buffer, cloudinaryConfig);
           req.cloudinaryUrl = result.secure_url;
         }
 

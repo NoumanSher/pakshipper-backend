@@ -8,7 +8,7 @@ import asyncHandler from "../../../middlewares/asyncHandler.js";
  */
 export const getChildCategoriesByParentId = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const { parentCategory, childCategories } = await CategoryService.getChildCategoriesByParentId(id);
+  const { parentCategory, childCategories } = await CategoryService.getChildCategoriesByParentId(req.models, id);
 
   res.status(200).json({
     message: "Successfully fetched child categories of the parent",

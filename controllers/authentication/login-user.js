@@ -17,7 +17,7 @@ const loginSchema = z.object({
  */
 export const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
-  const result = await AuthService.login(email, password);
+  const result = await AuthService.login(req.models, email, password);
 
   res.status(200).json({
     message: "Login successful",

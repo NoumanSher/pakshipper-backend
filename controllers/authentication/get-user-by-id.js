@@ -11,7 +11,7 @@ import asyncHandler from "../../middlewares/asyncHandler.js";
  */
 export const getUserById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const user = await UserService.getUserById(id);
+  const user = await UserService.getUserById(req.models, id);
 
   res.status(200).json({ message: "User fetched successfully", data: user });
 });

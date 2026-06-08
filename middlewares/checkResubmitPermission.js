@@ -1,8 +1,9 @@
-import mongoose from 'mongoose';
-
 /**
- * Middleware to check if user can resubmit a product
- * Allows: Product owner, users with product_approval permission, or admins
+ * Middleware to check if user can resubmit a product.
+ * Uses req.models (from tenantResolver) instead of mongoose.model() for multi-tenancy.
+ * Uses structured RBAC with level-based hierarchy.
+ * 
+ * Allows: Product owner, users with products:approve permission, or level >= 90 (admin/owner)
  */
 const checkResubmitPermission = async (req, res, next) => {
     try {
@@ -13,35 +14,41 @@ const checkResubmitPermission = async (req, res, next) => {
             return res.status(401).json({ error: 'Authentication required' });
         }
 
-        if (!productId || !mongoose.Types.ObjectId.isValid(productId)) {
+        if (!productId) {
             return res.status(400).json({ error: 'Invalid product ID' });
         }
 
         // Get user with role and permissions
-        const User = mongoose.model('User');
+        const { User, Product } = req.models;
         const user = await User.findById(userId).populate('role').lean();
 
         if (!user || !user.role) {
             return res.status(403).json({ error: 'No role assigned to user' });
         }
 
-        const permissions = user.role.permissions || [];
-        const roleName = user.role.name;
-
-        // Check 1: Is user an Admin?
-        if (roleName === 'Admin' || roleName === 'Super Admin') {
-            console.log(`✅ User is ${roleName} - allowing resubmit`);
+        // Check 1: Name-based bypass (owner/store_admin always pass)
+        const roleName = (user.role.name || '').toLowerCase();
+        if (roleName === 'owner' || roleName === 'store_admin') {
             return next();
         }
 
-        // Check 2: Does user have product_approval permission?
-        if (permissions.includes('product_approval')) {
-            console.log('✅ User has product_approval permission - allowing resubmit');
+        // Check 2: Level-based bypass (level >= 90)
+        if (user.role.level && user.role.level >= 90) {
+            return next();
+        }
+
+        const permissions = user.role.permissions || [];
+
+        // Check 2: Does user have products:approve permission?
+        const hasApprovePermission = permissions.some(
+            (p) => p.resource === 'products' && p.actions && p.actions.includes('approve')
+        );
+
+        if (hasApprovePermission) {
             return next();
         }
 
         // Check 3: Is user the owner of the product?
-        const Product = mongoose.model('Product');
         const product = await Product.findById(productId).lean();
 
         if (!product) {
@@ -51,7 +58,6 @@ const checkResubmitPermission = async (req, res, next) => {
         const isOwner = product.createdBy && product.createdBy.toString() === userId.toString();
 
         if (isOwner) {
-            console.log('✅ User owns the product - allowing resubmit');
             return next();
         }
 

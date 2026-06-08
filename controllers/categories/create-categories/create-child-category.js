@@ -20,7 +20,7 @@ const childCategorySchema = z.object({
  */
 export const createChildCategory = asyncHandler(async (req, res) => {
   const validatedData = childCategorySchema.parse(req.body);
-  const childCategory = await CategoryService.createChildCategory(validatedData);
+  const childCategory = await CategoryService.createChildCategory(req.models, req.tenantConfig.tenantId, validatedData);
 
   res.status(201).json({
     message: "Child Category created successfully",

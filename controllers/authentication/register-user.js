@@ -20,7 +20,7 @@ const registerSchema = z.object({
  */
 export const registerUser = asyncHandler(async (req, res) => {
   const validatedData = registerSchema.parse(req.body);
-  const result = await AuthService.register(validatedData);
+  const result = await AuthService.register(req.models, validatedData);
 
   res.status(201).json({
     message: "User registered successfully",

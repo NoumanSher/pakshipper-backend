@@ -10,7 +10,7 @@ import asyncHandler from "../../../middlewares/asyncHandler.js";
  * @returns {Object} JSON response with list of child categories or error
  */
 export const getAllChildCategories = asyncHandler(async (req, res) => {
-  const categories = await CategoryService.getAllChildCategories();
+  const categories = await CategoryService.getAllChildCategories(req.models);
 
   res.status(200).json({
     message: "Successfully Fetched!",

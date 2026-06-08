@@ -36,7 +36,7 @@ router.get("/product/:productId", productReview);
 router.get(
   "/admin/all",
   authMiddleware,
-  checkPermission("read:reviews"),
+  checkPermission("reviews", "read"),
   adminAllReview
 );
 
@@ -48,7 +48,7 @@ router.get(
 router.put(
   "/admin/:reviewId/status",
   authMiddleware,
-  checkPermission("write:reviews"),
+  checkPermission("reviews", "write"),
   statusApprove
 );
 
@@ -60,7 +60,7 @@ router.put(
 router.delete(
   "/admin/:reviewId",
   authMiddleware,
-  checkPermission("delete:reviews"),
+  checkPermission("reviews", "delete"),
   deleteReveiw
 );
 

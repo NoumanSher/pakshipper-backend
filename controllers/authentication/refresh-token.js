@@ -15,7 +15,7 @@ const refreshTokenSchema = z.object({
  */
 export const refreshToken = asyncHandler(async (req, res) => {
   const { token } = refreshTokenSchema.parse(req.body);
-  const result = await AuthService.refreshToken(token);
+  const result = await AuthService.refreshToken(req.models, token);
 
   res.status(200).json(result);
 });

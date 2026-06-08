@@ -1,15 +1,14 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import User from "../models/user-schema.js";
-import Role from "../models/Role.js";
 import AppError from "../utils/AppError.js";
-import { sendEmail } from "./email-service.js";
+import { createEmailService } from "./emailFactory.js";
 
 class AuthService {
   /**
    * Register a new user.
    */
-  static async register(userData) {
+  static async register(models, userData) {
+    const { User, Role } = models;
     const { email, username, mobilePhone, password, confirmPassword } = userData;
 
     // Check if user already exists
@@ -23,7 +22,7 @@ class AuthService {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Get default role
-    const userRole = await Role.findOne({ name: "user" });
+    const userRole = await Role.findOne({ name: "customer" }); // Updated default to 'customer'
     if (!userRole) throw new AppError("Default user role not found. Please run seed script.", 500);
 
     // Create and save user
@@ -32,7 +31,7 @@ class AuthService {
       username,
       mobilePhone,
       password: hashedPassword,
-      confirmPassword: hashedPassword, // Note: Schema might require this, though hashing it is odd for confirmation.
+      confirmPassword: hashedPassword,
       role: userRole._id,
     });
 
@@ -50,7 +49,8 @@ class AuthService {
   /**
    * Login a user.
    */
-  static async login(email, password) {
+  static async login(models, email, password) {
+    const { User } = models;
     const user = await User.findOne({ email }).populate("role");
     if (!user) throw new AppError("Invalid email or password", 400);
 
@@ -69,7 +69,8 @@ class AuthService {
   /**
    * Refresh access token.
    */
-  static async refreshToken(oldRefreshToken) {
+  static async refreshToken(models, oldRefreshToken) {
+    const { User } = models;
     try {
       const decoded = jwt.verify(oldRefreshToken, process.env.REFRESH_TOKEN_SECRET || "refresh_secret_hey");
       const user = await User.findById(decoded.id).populate("role");
@@ -91,7 +92,8 @@ class AuthService {
   /**
    * Handle forgot password.
    */
-  static async forgotPassword(email) {
+  static async forgotPassword(models, tenantConfig, email) {
+    const { User } = models;
     const user = await User.findOne({ email });
     if (!user) throw new AppError("Email not found", 400);
 
@@ -104,17 +106,20 @@ class AuthService {
 
     const subject = "Password Reset Request";
     const text = `You requested a password reset. Please use the following token: ${token}`;
+    const frontendUrl = tenantConfig.frontendUrl || process.env.FRONTEND_URL;
     const html = `<p>You requested a password reset. Please click on the following link to reset your password:</p>
-                  <a href="${process.env.FRONTEND_URL}/reset-password?token=${token}">Reset Password</a>`;
+                  <a href="${frontendUrl}/reset-password?token=${token}">Reset Password</a>`;
 
-    await sendEmail(user.email, subject, text, html);
+    const emailService = createEmailService(tenantConfig.email);
+    await emailService.sendEmail(user.email, subject, text, html);
     return true;
   }
 
   /**
    * Handle reset password.
    */
-  static async resetPassword(token, newPassword, confirmPassword) {
+  static async resetPassword(models, tenantConfig, token, newPassword, confirmPassword) {
+    const { User } = models;
     try {
       const decoded = jwt.verify(token, process.env.SECRET_KEY);
       const user = await User.findById(decoded.userId);
@@ -135,7 +140,9 @@ class AuthService {
       const subject = "Password Reset Confirmation";
       const text = `Hello, your password has been successfully reset.`;
       const html = `<b>Hello,</b><br>Your password has been successfully reset.`;
-      await sendEmail(user.email, subject, text, html);
+      
+      const emailService = createEmailService(tenantConfig.email);
+      await emailService.sendEmail(user.email, subject, text, html);
 
       return true;
     } catch (error) {
@@ -152,8 +159,8 @@ class AuthService {
       {
         id: user._id,
         email: user.email,
-        role: role?.name || "user",
-        permissions: role?.permissions || [],
+        role: role?.name || "customer",
+        roleLevel: role?.level || 0,
       },
       process.env.SECRET_KEY,
       { expiresIn: "15m" }

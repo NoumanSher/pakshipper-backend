@@ -1,9 +1,6 @@
-import products from "../../models/products.js";
-import userSchema from "../../models/user-schema.js";
 import mongoose from "mongoose";
-import Review from "../../models/Review.js";
+import { getTenantRedisKey } from "../../config/redis/redisHelpers.js";
 import client from "../../config/redis/redisClient.js";
-import postOrder from "../../models/post-order.js";
 import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
 
 /**
@@ -29,6 +26,7 @@ import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
  */
 export const createReview = async (req, res) => {
   try {
+    const { Product: products, User: userSchema, Review } = req.models;
     const { userId, productId, rating, description, images, createdAt } = req.body;
 
     // Validate required fields
@@ -116,6 +114,7 @@ export const createReview = async (req, res) => {
  */
 export const productReview = async (req, res) => {
   try {
+    const { Review, PostOrder: postOrder } = req.models;
     const { productId } = req.params;
     const { userId } = req.query;
 
@@ -243,6 +242,7 @@ export const productReview = async (req, res) => {
  */
 export const userReviewEdit = async (req, res) => {
   try {
+    const { Review } = req.models;
     const { reviewId } = req.params;
     const { rating, description, userId } = req.body;
 
@@ -309,6 +309,7 @@ export const userReviewEdit = async (req, res) => {
  */
 export const adminAllReview = async (req, res) => {
   try {
+    const { Review } = req.models;
     const {
       status,
       page = 1,
@@ -370,6 +371,7 @@ export const adminAllReview = async (req, res) => {
  */
 export const statusApprove = async (req, res) => {
   try {
+    const { Product: products, Review } = req.models;
     const { reviewId } = req.params;
     const { status, adminMessage } = req.body;
 
@@ -428,7 +430,7 @@ export const statusApprove = async (req, res) => {
     }
 
     // Clear Redis cache for the specific product
-    await client.del(`product::${review.productId}`);
+    await client.del(getTenantRedisKey(req.tenantConfig.tenantId, `product::${review.productId}`));
 
     res.status(200).json({
       message: `Review ${status} successfully`,
@@ -460,6 +462,7 @@ export const statusApprove = async (req, res) => {
  */
 export const deleteReveiw = async (req, res) => {
   try {
+    const { Review } = req.models;
     const { reviewId } = req.params;
     const { userId, isAdmin } = req.body;
 
@@ -524,6 +527,7 @@ export const deleteReveiw = async (req, res) => {
  */
 export const userAllReveiw = async (req, res) => {
   try {
+    const { Review } = req.models;
     const { userId } = req.params;
     const {
       status = "approved",
@@ -570,6 +574,7 @@ export const userAllReveiw = async (req, res) => {
 
 export const toggleHelpfulReview = async (req, res) => {
   try {
+    const { Review } = req.models;
     const { userId, reviewId } = req.body;
 
     if (

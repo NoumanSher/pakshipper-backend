@@ -1,5 +1,3 @@
-import User from "../models/user-schema.js";
-import Role from "../models/Role.js";
 import AppError from "../utils/AppError.js";
 import bcrypt from "bcrypt";
 
@@ -7,14 +5,16 @@ class UserService {
   /**
    * Get all users.
    */
-  static async getAllUsers() {
+  static async getAllUsers(models) {
+    const { User } = models;
     return await User.find().populate("role").sort({ createdAt: -1 });
   }
 
   /**
    * Admin: Create a new user with a specific role.
    */
-  static async adminCreateUser(userData) {
+  static async adminCreateUser(models, userData) {
+    const { User, Role } = models;
     const { email, username, mobilePhone, password, roleName } = userData;
 
     const existingUser = await User.findOne({ email });
@@ -41,7 +41,8 @@ class UserService {
   /**
    * Get user by ID.
    */
-  static async getUserById(id) {
+  static async getUserById(models, id) {
+    const { User } = models;
     const user = await User.findById(id).populate("role");
     if (!user) throw new AppError("User not found", 404);
     return user;
@@ -50,7 +51,8 @@ class UserService {
   /**
    * Update user details.
    */
-  static async updateUser(id, updateData) {
+  static async updateUser(models, id, updateData) {
+    const { User } = models;
     if (updateData.password) {
       updateData.password = await bcrypt.hash(updateData.password, 10);
     }
@@ -62,7 +64,8 @@ class UserService {
   /**
    * Delete a single user.
    */
-  static async deleteUser(id) {
+  static async deleteUser(models, id) {
+    const { User } = models;
     const user = await User.findByIdAndDelete(id);
     if (!user) throw new AppError("User not found", 404);
     return user;
@@ -71,7 +74,8 @@ class UserService {
   /**
    * Bulk delete users.
    */
-  static async bulkDeleteUsers(ids) {
+  static async bulkDeleteUsers(models, ids) {
+    const { User } = models;
     const result = await User.deleteMany({ _id: { $in: ids } });
     return result.deletedCount;
   }

@@ -12,7 +12,9 @@ import deleteImagesRoutes from "./delete-images-routes.js"; // Image deletion ro
 import dashboardRoutes from "./dashboard-routes.js"; // Dashboard statistics routes
 import roleRoutes from "./RoleRoutes.js"; // Role management routes
 import notificationRoutes from "./notification-routes.js"; // Notification routes
-// phase-2
+import platformAuthRoutes from "./platform/platformAuthRoutes.js"; // Platform auth
+import platformTenantRoutes from "./platform/platformTenantRoutes.js"; // Platform tenants
+
 /**
  * Connect all application routes to the Express app.
  *
@@ -20,6 +22,10 @@ import notificationRoutes from "./notification-routes.js"; // Notification route
  */
 
 const connectedRoutes = (app) => {
+  // Platform routes (Super Admin)
+  app.use("/api/platform/auth", platformAuthRoutes);
+  app.use("/api/platform/tenants", platformTenantRoutes);
+
   // Test route
   app.use("/api/auth", userRoutes);
   app.use("/api/settings", settingsRoutes);

@@ -205,4 +205,5 @@ ProductSchema.pre("save", function (next) {
   next();
 });
 
+export { ProductSchema };
 export default mongoose.model("Product", ProductSchema);

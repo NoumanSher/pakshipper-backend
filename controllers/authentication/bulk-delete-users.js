@@ -1,5 +1,6 @@
 import UserService from "../../services/userService.js";
 import asyncHandler from "../../middlewares/asyncHandler.js";
+import AppError from "../../utils/AppError.js";
 import { z } from "zod";
 
 const bulkDeleteUsersSchema = z.object({
@@ -16,7 +17,19 @@ const bulkDeleteUsersSchema = z.object({
  */
 export const bulkDeleteUsers = asyncHandler(async (req, res) => {
     const { ids } = bulkDeleteUsersSchema.parse(req.body);
-    const deletedCount = await UserService.bulkDeleteUsers(ids);
+    const currentUserId = req.user?.id || req.user?._id;
+
+    if (ids.includes(currentUserId?.toString())) {
+        throw new AppError("You cannot delete your own account.", 400);
+    }
+
+    const users = await req.models.User.find({ _id: { $in: ids } }).populate("role");
+    const hasOwner = users.some(u => u.role?.name === "owner");
+    if (hasOwner) {
+        throw new AppError("You cannot delete a store owner account.", 400);
+    }
+
+    const deletedCount = await UserService.bulkDeleteUsers(req.models, ids);
 
     res.status(200).json({
         message: "Users deleted successfully",

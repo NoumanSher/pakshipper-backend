@@ -95,7 +95,7 @@ const markReturnSchema = z.object({
 export const createPostOrder = asyncHandler(async (req, res) => {
   const io = req.app.get("io");
   const validatedData = createOrderSchema.parse(req.body);
-  const transformedResponse = await OrderService.createOrder(validatedData, io);
+  const transformedResponse = await OrderService.createOrder(req.models, req.tenantConfig, validatedData, io);
 
   res.status(201).json({
     message: "Order placed successfully!",
@@ -158,7 +158,7 @@ export const createPostOrder = asyncHandler(async (req, res) => {
 
 export const userAllOrders = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  const transformedResponse = await OrderService.getUserOrders(userId);
+  const transformedResponse = await OrderService.getUserOrders(req.models, userId);
 
   res.status(200).json({
     message: "Order Fetch Successfully!",
@@ -220,7 +220,7 @@ export const userAllOrders = asyncHandler(async (req, res) => {
  */
 
 export const AllOrders = asyncHandler(async (req, res) => {
-  const transformedResponse = await OrderService.getAllOrders();
+  const transformedResponse = await OrderService.getAllOrders(req.models);
 
   res.status(200).json({
     message: "Order Fetch Successfully!",
@@ -290,7 +290,7 @@ export const AllOrders = asyncHandler(async (req, res) => {
 
 export const searchOrderNoOrders = asyncHandler(async (req, res) => {
   const { orderNo } = req.params;
-  const transformedResponse = await OrderService.getOrderByNo(orderNo);
+  const transformedResponse = await OrderService.getOrderByNo(req.models, orderNo);
 
   res.status(200).json({
     message: "Order Fetch Successfully!",
@@ -330,7 +330,7 @@ export const searchOrderNoOrders = asyncHandler(async (req, res) => {
 
 export const userAddress = asyncHandler(async (req, res) => {
   const { userId } = req.params;
-  const userAddress = await OrderService.getUserDefaultAddress(userId);
+  const userAddress = await OrderService.getUserDefaultAddress(req.models, userId);
 
   res.status(200).json({
     message: "Address fetched successfully!",
@@ -384,7 +384,7 @@ export const userAddress = asyncHandler(async (req, res) => {
 export const orderStatusUpdate = asyncHandler(async (req, res) => {
   const io = req.app.get("io");
   const { orderNo, status, statusDesc } = updateStatusSchema.parse(req.body);
-  const orderStatuses = await OrderService.updateOrderStatus(orderNo, status, statusDesc, io);
+  const orderStatuses = await OrderService.updateOrderStatus(req.models, req.tenantConfig, orderNo, status, statusDesc, io);
 
   res.status(200).json({
     message: "Order status updated successfully",
@@ -409,7 +409,7 @@ export const orderStatusUpdate = asyncHandler(async (req, res) => {
  */
 export const deletePostOrder = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  await OrderService.deleteOrder(id);
+  await OrderService.deleteOrder(req.models, id);
   res.status(200).json({ message: "Order deleted successfully" });
 });
 
@@ -430,7 +430,7 @@ export const deletePostOrder = asyncHandler(async (req, res) => {
  */
 export const bulkDeletePostOrders = asyncHandler(async (req, res) => {
   const { ids } = bulkDeleteSchema.parse(req.body);
-  const deletedCount = await OrderService.bulkDeleteOrders(ids);
+  const deletedCount = await OrderService.bulkDeleteOrders(req.models, ids);
 
   res.status(200).json({
     message: `${deletedCount} orders deleted successfully`,
@@ -454,7 +454,7 @@ export const bulkDeletePostOrders = asyncHandler(async (req, res) => {
 export const markOrderReturned = asyncHandler(async (req, res) => {
   const io = req.app.get("io");
   const { orderNo, returnReason } = markReturnSchema.parse(req.body);
-  const orderStatuses = await OrderService.markAsReturned(orderNo, returnReason, io);
+  const orderStatuses = await OrderService.markAsReturned(req.models, req.tenantConfig, orderNo, returnReason, io);
 
   res.status(200).json({
     message: "Order marked as returned successfully",

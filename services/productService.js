@@ -1,14 +1,9 @@
-import Product from "../models/products.js";
 import client from "../config/redis/redisClient.js";
+import { getTenantRedisKey, flushTenantCache } from "../config/redis/redisHelpers.js";
 import mongoose from "mongoose";
 import AppError from "../utils/AppError.js";
-import Review from "../models/Review.js";
-import PostOrder from "../models/post-order.js";
-import UserCart from "../models/UserCart.js";
 import cloudinary from "../utils/cloudinary.js";
-import { adminConfig } from "../utils/cloudinaryAdmin.js";
-import ParentCategory from "../models/categories.js";
-import ChildCategory from "../models/child-categories.js";
+import { getCloudinaryConfig } from "./cloudinaryFactory.js";
 
 const commonProjection = {
   images: { $slice: 1 },
@@ -25,7 +20,8 @@ class ProductService {
    * @param {String} userId - The ID of the user creating the product.
    * @returns {Object} The newly created product.
    */
-  static async createProduct(productData, userId) {
+  static async createProduct(models, tenantConfig, productData, userId) {
+    const { Product } = models;
     const newProduct = new Product({
       ...productData,
       createdBy: userId,
@@ -34,7 +30,7 @@ class ProductService {
     const savedProduct = await newProduct.save();
 
     // Invalidate product cache
-    await client.flushAll();
+    await flushTenantCache(tenantConfig.tenantId);
 
     return savedProduct;
   }
@@ -45,12 +41,14 @@ class ProductService {
    * @param {Boolean} isAdminRequest - Whether the request is from an admin.
    * @returns {Object} The product data.
    */
-  static async getProductById(id, isAdminRequest) {
+  static async getProductById(models, tenantConfig, id, isAdminRequest) {
+    const { Product } = models;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new AppError("Invalid Product ID", 400);
     }
 
-    const cacheKey = isAdminRequest ? `product:admin:${id}` : `product::${id}`;
+    const baseKey = isAdminRequest ? `product:admin:${id}` : `product::${id}`;
+    const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
     const cached = await client.get(cacheKey);
     if (cached) {
@@ -91,12 +89,14 @@ class ProductService {
 
     return response;
   }
-  static async getProductBySlug(slug) {
+  static async getProductBySlug(models, tenantConfig, slug) {
+    const { Product, Review } = models;
     if (!slug) {
       throw new AppError("Slug is required", 400);
     }
 
-    const cacheKey = `product:slug:${slug}`;
+    const baseKey = `product:slug:${slug}`;
+    const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
     const cached = await client.get(cacheKey);
     if (cached) {
@@ -174,7 +174,8 @@ class ProductService {
     return response;
   }
 
-  static async deleteProduct(id, mode) {
+  static async deleteProduct(models, tenantConfig, id, mode) {
+    const { Product, PostOrder, Review, UserCart } = models;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new AppError("Invalid Product ID", 400);
     }
@@ -217,8 +218,11 @@ class ProductService {
 
         if (publicIds.length > 0) {
           try {
-            await cloudinary.api.delete_resources(publicIds, adminConfig);
-            console.log(`✅ Deleted ${publicIds.length} images from Cloudinary`);
+            const cloudinaryConfig = getCloudinaryConfig(tenantConfig, 'merchant');
+            if (cloudinaryConfig) {
+              await cloudinary.api.delete_resources(publicIds, cloudinaryConfig);
+              console.log(`✅ Deleted ${publicIds.length} images from Cloudinary`);
+            }
           } catch (cloudinaryError) {
             console.error("⚠️ Error deleting images from Cloudinary:", cloudinaryError.message);
           }
@@ -228,7 +232,7 @@ class ProductService {
       actualMode = "hard";
     }
 
-    await client.flushAll();
+    await flushTenantCache(tenantConfig.tenantId);
 
     return {
       message: actualMode === "soft" ? "Product Archived Successfully!" : "Product Permanently Deleted!",
@@ -237,7 +241,7 @@ class ProductService {
     };
   }
 
-  static async getAllProducts({
+  static async getAllProducts(models, tenantConfig, {
     parentCategoryID,
     childCategoryID,
     parentCategorySlug,
@@ -248,6 +252,7 @@ class ProductService {
     approvalStatus,
     isAdminRequest,
   }) {
+    const { Product, ParentCategories: ParentCategory, ChildCategories: ChildCategory } = models;
     let approvalFilter = {};
 
     if (approvalStatus === 'all') {
@@ -302,7 +307,7 @@ class ProductService {
     const limitNumber = parseInt(limit, 10) || 8;
     const skip = (pageNumber - 1) * limitNumber;
 
-    const cacheKey = `products::${new URLSearchParams({
+    const baseKey = `products::${new URLSearchParams({
       pID: query.parentCategoryID || "",
       cID: query.childCategoryID || "",
       pS: parentCategorySlug || "",
@@ -313,6 +318,7 @@ class ProductService {
       as: approvalStatus || "",
       adm: isAdminRequest ? "1" : "0",
     }).toString()}`;
+    const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
     const cached = await client.get(cacheKey);
     if (cached) {
@@ -393,7 +399,8 @@ class ProductService {
     return response;
   }
 
-  static async updateProduct(id, updateData, userId) {
+  static async updateProduct(models, tenantConfig, id, updateData, userId) {
+    const { Product } = models;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       throw new AppError("Invalid Product ID", 400);
     }
@@ -419,8 +426,11 @@ class ProductService {
 
       if (removedPublicIds.length > 0) {
         try {
-          await cloudinary.api.delete_resources(removedPublicIds, adminConfig);
-          console.log(`✅ Deleted ${removedPublicIds.length} removed image(s) from Cloudinary:`, removedPublicIds);
+          const cloudinaryConfig = getCloudinaryConfig(tenantConfig, 'merchant');
+          if (cloudinaryConfig) {
+            await cloudinary.api.delete_resources(removedPublicIds, cloudinaryConfig);
+            console.log(`✅ Deleted ${removedPublicIds.length} removed image(s) from Cloudinary:`, removedPublicIds);
+          }
         } catch (cloudinaryError) {
           // Log but do not block the product update
           console.error("⚠️ Error deleting removed images from Cloudinary:", cloudinaryError.message);
@@ -450,7 +460,7 @@ class ProductService {
     if (!updatedProduct) {
       throw new AppError("Product Not Found", 404);
     }
-    await client.flushAll();
+    await flushTenantCache(tenantConfig.tenantId);
 
     const responseMessage = currentProduct.approvalStatus === 'rejected'
       ? "Product Updated Successfully and resubmitted for approval"
@@ -463,18 +473,20 @@ class ProductService {
     };
   }
 
-  static async getProductRelatedInfo({
+  static async getProductRelatedInfo(models, tenantConfig, {
     parentCategorySlug,
     childCategorySlug,
     categoryId,
     productId
   }) {
-    const cacheKey = `products-related-info::${new URLSearchParams({
+    const { Product, ParentCategories: ParentCategory, ChildCategories: ChildCategory } = models;
+    const baseKey = `products-related-info::${new URLSearchParams({
       pS: parentCategorySlug || "",
       cS: childCategorySlug || "",
       cID: categoryId || "",
       pID: productId || ""
     }).toString()}`;
+    const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
     const cached = await client.get(cacheKey);
     if (cached) {

@@ -8,6 +8,6 @@ import asyncHandler from "../../../middlewares/asyncHandler.js";
  */
 export const deleteChildCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  await CategoryService.deleteChildCategory(id);
+  await CategoryService.deleteChildCategory(req.models, req.tenantConfig.tenantId, id);
   res.status(200).json({ message: "Child category deleted successfully" });
 });

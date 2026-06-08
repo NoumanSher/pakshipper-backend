@@ -31,14 +31,14 @@ const router = express.Router();
  * @desc    Create a new product
  * @access  Admin
  */
-router.post("/create-product", authMiddleware, checkPermission("write:products"), createProduct);
+router.post("/create-product", authMiddleware, checkPermission("products", "write"), createProduct);
 
 /**
  * @route   GET /api/products/get-product/:id
  * @desc    Get a single product by its ID
  * @access  Public
  */
-router.get("/get-product/:id", authMiddleware, checkPermission("read:products"), getProductById);
+router.get("/get-product/:id", authMiddleware, checkPermission("products", "read"), getProductById);
 
 /**
  * @route   GET /api/products/get-product-by-slug/:slug
@@ -92,21 +92,21 @@ router.get("/get-product-related-info", getProductRelatedInfo);
  * @desc    Get all pending products for approval
  * @access  Admin or users with product_approval permission
  */
-router.get("/pending", authMiddleware, checkPermission("product_approval"), getPendingProducts);
+router.get("/pending", authMiddleware, checkPermission("products", "approve"), getPendingProducts);
 
 /**
  * @route   PATCH /api/products/:id/approve
  * @desc    Approve a product
  * @access  Admin or users with product_approval permission
  */
-router.patch("/:id/approve", authMiddleware, checkPermission("product_approval"), approveProduct);
+router.patch("/:id/approve", authMiddleware, checkPermission("products", "approve"), approveProduct);
 
 /**
  * @route   PATCH /api/products/:id/reject
  * @desc    Reject a product with reason
  * @access  Admin or users with product_approval permission
  */
-router.patch("/:id/reject", authMiddleware, checkPermission("product_approval"), rejectProduct);
+router.patch("/:id/reject", authMiddleware, checkPermission("products", "approve"), rejectProduct);
 
 /**
  * @route   PATCH /api/products/:id/resubmit
@@ -127,6 +127,6 @@ router.get("/:id/approval-history", authMiddleware, checkOwnershipOrPermission("
  * @desc    Auto-approve all existing products (run once for migration)
  * @access  Admin only
  */
-router.post("/migrate/approve-existing", authMiddleware, checkPermission("product_approval"), autoApproveExistingProducts);
+router.post("/migrate/approve-existing", authMiddleware, checkPermission("products", "approve"), autoApproveExistingProducts);
 
 export default router;

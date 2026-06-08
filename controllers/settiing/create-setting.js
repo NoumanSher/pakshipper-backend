@@ -1,5 +1,6 @@
-import Settings from "../../models/settings.js";
 import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
+import { getCloudinaryConfig } from "../../services/cloudinaryFactory.js";
+import { adminConfig } from "../../utils/cloudinaryAdmin.js";
 
 /**
  * @route   POST /api/settings/create
@@ -11,6 +12,7 @@ import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
  */
 export const createOrUpdateSettings = async (req, res) => {
     try {
+        const { Settings } = req.models;
         // Attempt to find existing settings
         const existingSettings = await Settings.findOne();
 
@@ -58,8 +60,9 @@ export const createOrUpdateSettings = async (req, res) => {
             const urlsToDelete = [...oldUrls].filter(url => !newUrls.has(url));
             
             if (urlsToDelete.length > 0) {
+                const cloudConfig = getCloudinaryConfig(req.tenantConfig, 'merchant') || adminConfig;
                 // Background deletion
-                deleteMultipleFromCloudinary(urlsToDelete, true).catch(err => 
+                deleteMultipleFromCloudinary(urlsToDelete, cloudConfig).catch(err => 
                     console.error("Background cloudinary deletion failed:", err)
                 );
             }

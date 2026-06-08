@@ -41,15 +41,20 @@ export const extractPublicId = (url) => {
 /**
  * Deletes an image from Cloudinary using the extracted public_id.
  * @param {string} url - The Cloudinary image URL
- * @param {boolean} useAdminConfig - Whether to use the admin Cloudinary credentials
+ * @param {boolean|Object} configOption - The custom Cloudinary config object OR boolean for using admin config
  * @returns {Promise<boolean>} True if successful, false otherwise
  */
-export const deleteFromCloudinary = async (url, useAdminConfig = false) => {
+export const deleteFromCloudinary = async (url, configOption = false) => {
     const publicId = extractPublicId(url);
     if (!publicId) return false;
 
     try {
-        const config = useAdminConfig ? adminConfig : undefined;
+        let config;
+        if (configOption && typeof configOption === "object") {
+            config = configOption;
+        } else {
+            config = configOption ? adminConfig : undefined;
+        }
         // If config is provided, pass it to destroy. Otherwise use the default setup.
         // Cloudinary v2 api takes options as the second argument.
         const result = await cloudinary.uploader.destroy(publicId, config);
@@ -68,13 +73,13 @@ export const deleteFromCloudinary = async (url, useAdminConfig = false) => {
 /**
  * Deletes multiple images from Cloudinary.
  * @param {Array<string>} urls - Array of Cloudinary image URLs
- * @param {boolean} useAdminConfig - Whether to use the admin Cloudinary credentials
+ * @param {boolean|Object} configOption - The custom Cloudinary config object OR boolean for using admin config
  * @returns {Promise<void>}
  */
-export const deleteMultipleFromCloudinary = async (urls, useAdminConfig = false) => {
+export const deleteMultipleFromCloudinary = async (urls, configOption = false) => {
     if (!urls || !Array.isArray(urls)) return;
     
     // Process deletions in parallel
-    const deletePromises = urls.map(url => deleteFromCloudinary(url, useAdminConfig));
+    const deletePromises = urls.map(url => deleteFromCloudinary(url, configOption));
     await Promise.allSettled(deletePromises);
 };

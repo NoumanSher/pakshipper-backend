@@ -1,4 +1,4 @@
-import Notification from "../../models/notification.js";
+
 import asyncHandler from "../../middlewares/asyncHandler.js";
 
 /**
@@ -7,6 +7,7 @@ import asyncHandler from "../../middlewares/asyncHandler.js";
  * @access  Private
  */
 export const getUserNotifications = asyncHandler(async (req, res) => {
+  const { Notification } = req.models;
   const userId = req.user.id; // Corrected from _id to id to match JWT payload
   const notifications = await Notification.find({ userId })
     .sort({ createdAt: -1 })
@@ -24,6 +25,7 @@ export const getUserNotifications = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const markAsRead = asyncHandler(async (req, res) => {
+  const { Notification } = req.models;
   const notification = await Notification.findOneAndUpdate(
     { _id: req.params.id, userId: req.user.id },
     { isRead: true },
@@ -47,6 +49,7 @@ export const markAsRead = asyncHandler(async (req, res) => {
  * @access  Private
  */
 export const markAllAsRead = asyncHandler(async (req, res) => {
+  const { Notification } = req.models;
   await Notification.updateMany(
     { userId: req.user.id, isRead: false },
     { isRead: true }

@@ -10,9 +10,8 @@ import { getAllUsers } from "../controllers/authentication/get-all-user.js";
 import { getMe } from "../controllers/authentication/get-me.js";
 import authMiddleware from "../middlewares/authMiddleWare.js";
 import checkPermission from "../middlewares/permissionMiddleWare.js";
-import passport from "../OAuth/Google/googleStrategy.js";
-// Ensure LinkedIn strategy is registered (side-effect import)
-import "../OAuth/LinkedIn/LinkdinStaregy.js";
+import passport, { createTenantGoogleStrategy } from "../OAuth/Google/googleStrategy.js";
+import { createTenantLinkedInStrategy } from "../OAuth/LinkedIn/LinkdinStaregy.js";
 import { deleteUser } from "../controllers/authentication/delete-user.js";
 import { bulkDeleteUsers } from "../controllers/authentication/bulk-delete-users.js";
 import { adminCreateUser } from "../controllers/authentication/admin-create-user.js";
@@ -75,28 +74,28 @@ router.post("/forget-password", authMiddleware, forgetPassword);
  * @desc    Get all users (Admin only)
  * @access  Private/Admin
  */
-router.get("/all", authMiddleware, checkPermission("read:customers"), getAllUsers);
+router.get("/all", authMiddleware, checkPermission("customers", "read"), getAllUsers);
 
 /**
  * @route   DELETE /api/auth/delete-user/:id
  * @desc    Delete a single user (Admin only)
  * @access  Private/Admin
  */
-router.delete("/delete-user/:id", authMiddleware, checkPermission("delete:customers"), deleteUser);
+router.delete("/delete-user/:id", authMiddleware, checkPermission("customers", "delete"), deleteUser);
 
 /**
  * @route   DELETE /api/auth/delete-users
  * @desc    Delete multiple users (Admin only)
  * @access  Private/Admin
  */
-router.delete("/delete-users", authMiddleware, checkPermission("delete:customers"), bulkDeleteUsers);
+router.delete("/delete-users", authMiddleware, checkPermission("customers", "delete"), bulkDeleteUsers);
 
 /**
  * @route   POST /api/auth/admin/create-user
  * @desc    Create a user with a specific role (Admin only)
  * @access  Private/Admin
  */
-router.post("/admin/create-user", authMiddleware, checkPermission("write:customers"), adminCreateUser);
+router.post("/admin/create-user", authMiddleware, checkPermission("customers", "write"), adminCreateUser);
 
 // Get current authenticated user via token (JWT)
 router.get("/me", authMiddleware, getMe);
@@ -110,48 +109,78 @@ router.get("/first-order-discount/:userId", authMiddleware, checkFirstOrderDisco
 
 router.get(
   "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  (req, res, next) => {
+    const tenantId = req.tenantConfig?.tenantId;
+    const googleConfig = req.tenantConfig?.oauth?.google;
+    if (!googleConfig || !googleConfig.clientId || !googleConfig.clientSecret) {
+      return res.status(400).json({ error: "Google OAuth is not configured for this store." });
+    }
+    const strategyName = createTenantGoogleStrategy(tenantId, googleConfig, req.models);
+    passport.authenticate(strategyName, { scope: ["profile", "email"] })(req, res, next);
+  }
 );
 
 router.get(
   "/linkedin",
-  passport.authenticate("linkedin", {
-    scope: ["openid", "profile", "email"],
-  })
+  (req, res, next) => {
+    const tenantId = req.tenantConfig?.tenantId;
+    const linkedinConfig = req.tenantConfig?.oauth?.linkedin;
+    if (!linkedinConfig || !linkedinConfig.apiKey || !linkedinConfig.secretKey) {
+      return res.status(400).json({ error: "LinkedIn OAuth is not configured for this store." });
+    }
+    const strategyName = createTenantLinkedInStrategy(tenantId, linkedinConfig, req.models);
+    passport.authenticate(strategyName, { scope: ["openid", "profile", "email"] })(req, res, next);
+  }
 );
 
 router.get(
   "/linkedin/callback",
-  passport.authenticate("linkedin", {
-    failureRedirect: "/login",
-    session: false,
-  }),
+  (req, res, next) => {
+    const tenantId = req.tenantConfig?.tenantId;
+    const linkedinConfig = req.tenantConfig?.oauth?.linkedin;
+    if (!linkedinConfig || !linkedinConfig.apiKey || !linkedinConfig.secretKey) {
+      const frontendUrl = req.tenantConfig?.frontendUrl || "http://localhost:3000";
+      return res.redirect(`${frontendUrl}/auth/error`);
+    }
+    const strategyName = createTenantLinkedInStrategy(tenantId, linkedinConfig, req.models);
+    passport.authenticate(strategyName, {
+      failureRedirect: `${req.tenantConfig?.frontendUrl || "http://localhost:3000"}/login`,
+      session: false,
+    })(req, res, next);
+  },
   function (req, res) {
     console.log('[LinkedIn callback] req.user =>', req.user);
     const { user, token } = req.user || {};
+    const frontendUrl = req.tenantConfig?.frontendUrl || "http://localhost:3000";
     if (!token) {
-      return res.redirect(`${process.env.FRONTEND_URL || 'http://localhost:3000'}/auth/error`);
+      return res.redirect(`${frontendUrl}/auth/error`);
     }
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     return res.redirect(`${frontendUrl}/auth/success#token=${token}`);
   }
 );
 
 router.get(
   "/google/callback",
-  passport.authenticate("google", {
-    failureRedirect: "/login",
-    session: false,
-  }),
+  (req, res, next) => {
+    const tenantId = req.tenantConfig?.tenantId;
+    const googleConfig = req.tenantConfig?.oauth?.google;
+    if (!googleConfig || !googleConfig.clientId || !googleConfig.clientSecret) {
+      const frontendUrl = req.tenantConfig?.frontendUrl || "http://localhost:3000";
+      return res.redirect(`${frontendUrl}/auth/error`);
+    }
+    const strategyName = createTenantGoogleStrategy(tenantId, googleConfig, req.models);
+    passport.authenticate(strategyName, {
+      failureRedirect: `${req.tenantConfig?.frontendUrl || "http://localhost:3000"}/login`,
+      session: false,
+    })(req, res, next);
+  },
   function (req, res) {
     console.log("[OAuth callback] req.user =>", req.user);
     const { user, token } = req.user || {};
+    const frontendUrl = req.tenantConfig?.frontendUrl || "http://localhost:3000";
     if (!token) {
-      return res.redirect(
-        `${process.env.FRONTEND_URL || "http://localhost:3000"}/auth/error`
-      );
+      return res.redirect(`${frontendUrl}/auth/error`);
     }
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
     return res.redirect(`${frontendUrl}/auth/success#token=${token}`);
   }
 );

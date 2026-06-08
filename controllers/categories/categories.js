@@ -11,7 +11,7 @@ import asyncHandler from "../../middlewares/asyncHandler.js";
  */
 export const getParentCategoryById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const category = await CategoryService.getParentCategory(id);
+  const category = await CategoryService.getParentCategory(req.models, id);
   res.status(200).json({ message: "Category found", category });
 });
 
@@ -25,7 +25,7 @@ export const getParentCategoryById = asyncHandler(async (req, res) => {
  */
 export const getChildCategoryById = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const category = await CategoryService.getChildCategory(id);
+  const category = await CategoryService.getChildCategory(req.models, id);
   res.status(200).json({ message: "Category found", category });
 });
 
@@ -36,7 +36,7 @@ export const getChildCategoryById = asyncHandler(async (req, res) => {
  */
 export const getParentCategoryBySlug = asyncHandler(async (req, res) => {
   const { slug } = req.params;
-  const category = await CategoryService.getParentCategory(slug);
+  const category = await CategoryService.getParentCategory(req.models, slug);
   res.status(200).json({ message: "Category found", category });
 });
 
@@ -47,7 +47,7 @@ export const getParentCategoryBySlug = asyncHandler(async (req, res) => {
  */
 export const getChildCategoryBySlug = asyncHandler(async (req, res) => {
   const { slug } = req.params;
-  const category = await CategoryService.getChildCategory(slug);
+  const category = await CategoryService.getChildCategory(req.models, slug);
   res.status(200).json({ message: "Category found", category });
 });
 

@@ -20,7 +20,7 @@ const updateParentCategorySchema = z.object({
 export const updateParentCategory = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const validatedData = updateParentCategorySchema.parse(req.body);
-  const updatedCategory = await CategoryService.updateParentCategory(id, validatedData);
+  const updatedCategory = await CategoryService.updateParentCategory(req.models, req.tenantConfig.tenantId, id, validatedData);
 
   res.status(200).json({
     message: "Category updated successfully",

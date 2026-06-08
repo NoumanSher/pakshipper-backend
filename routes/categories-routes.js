@@ -37,14 +37,14 @@ router.get("/all", getParentCategoriesWithChildren);
  * @desc    Create a new parent category
  * @access  Admin
  */
-router.post("/create-parent-category", authMiddleware, checkPermission("write:categories"), createParentCategory);
+router.post("/create-parent-category", authMiddleware, checkPermission("categories", "write"), createParentCategory);
 
 /**
  * @route   POST /api/categories/create-child-category
  * @desc    Create a new child category
  * @access  Admin
  */
-router.post("/create-child-category", authMiddleware, checkPermission("write:categories"), createChildCategory);
+router.post("/create-child-category", authMiddleware, checkPermission("categories", "write"), createChildCategory);
 
 /**
  * @route   GET /api/categories/all-parent
@@ -93,14 +93,14 @@ router.get("/child/slug/:slug", getChildCategoryBySlug);
  * @desc    Update a parent category
  * @access  Admin
  */
-router.put("/update-parent-category/:id", authMiddleware, checkPermission("write:categories"), updateParentCategory);
+router.put("/update-parent-category/:id", authMiddleware, checkPermission("categories", "write"), updateParentCategory);
 
 /**
  * @route   DELETE /api/categories/delete-parent-category/:id
  * @desc    Delete a parent category
  * @access  Admin
  */
-router.delete("/delete-parent-category/:id", authMiddleware, checkPermission("delete:categories"), deleteParentCategory);
+router.delete("/delete-parent-category/:id", authMiddleware, checkPermission("categories", "delete"), deleteParentCategory);
 
 /**
  * @route   GET /api/categories/parent/:id/children
@@ -114,13 +114,13 @@ router.get("/parent/:id/children", getChildCategoriesByParentId);
  * @desc    Update a child category
  * @access  Admin
  */
-router.put("/update-child-category/:id", authMiddleware, checkPermission("write:categories"), updateChildCategory);
+router.put("/update-child-category/:id", authMiddleware, checkPermission("categories", "write"), updateChildCategory);
 
 /**
  * @route   DELETE /api/categories/delete-child-category/:id
  * @desc    Delete a child category
  * @access  Admin
  */
-router.delete("/delete-child-category/:id", authMiddleware, checkPermission("delete:categories"), deleteChildCategory);
+router.delete("/delete-child-category/:id", authMiddleware, checkPermission("categories", "delete"), deleteChildCategory);
 
 export default router;

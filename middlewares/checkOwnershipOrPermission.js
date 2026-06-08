@@ -1,10 +1,10 @@
-import mongoose from 'mongoose';
-
 /**
- * Middleware factory that checks if user has permission OR owns the resource
- * 
+ * Middleware factory that checks if user has permission OR owns the resource.
+ * Uses req.models (from tenantResolver) instead of mongoose.model() for multi-tenancy.
+ * Uses structured RBAC permissions with level-based hierarchy.
+ *
  * @param {string} resource - Resource type (e.g., 'products', 'orders')
- * @param {string} action - Action type ('update' or 'delete')
+ * @param {string} action - Action type ('read', 'write', 'delete', 'approve')
  * @param {string} idParam - Route parameter name for resource ID (default: 'id')
  * @returns {Function} Express middleware function
  */
@@ -18,51 +18,53 @@ const checkOwnershipOrPermission = (resource, action, idParam = 'id') => {
             }
 
             // Get user's permissions from their role
-            const User = mongoose.model('User');
+            const { User } = req.models;
             const user = await User.findById(userId).populate('role').lean();
 
             if (!user || !user.role) {
                 return res.status(403).json({ error: 'No role assigned to user' });
             }
 
+            // Name-based bypass: owner and store_admin always have full access
+            const roleName = (user.role.name || '').toLowerCase();
+            if (roleName === 'owner' || roleName === 'store_admin') {
+                return next();
+            }
+
+            // Level-based bypass: level >= 90 bypasses all checks
+            if (user.role.level && user.role.level >= 90) {
+                return next();
+            }
+
             const permissions = user.role.permissions || [];
-            const requiredPermission = `${action}:${resource}`;
-            const writePermission = `write:${resource}`;
 
-            // DEBUG: Log user role and permissions
-            console.log('🔍 DEBUG - User Role Name:', user.role.name);
-            console.log('🔍 DEBUG - User Permissions:', permissions);
-            console.log('🔍 DEBUG - Required Permission:', requiredPermission);
+            // Check 1: Does user have the full structured permission for this resource + action?
+            const hasFullPermission = permissions.some(
+                (p) => p.resource === resource && p.actions && p.actions.includes(action)
+            );
 
-            // Check 1: Does user have 'all' permission? (Super admin with all permissions)
-            if (permissions.includes('all')) {
-                console.log(`✅ User has 'all' permission - allowing ${action}`);
+            if (hasFullPermission) {
                 return next();
             }
 
-            // Check 2: Is user an Admin? (Case-insensitive check)
-            const roleName = user.role.name?.toLowerCase();
-            if (roleName === 'admin' || roleName === 'super admin') {
-                console.log(`✅ User is ${user.role.name} - allowing ${action}`);
-                return next();
-            }
+            // Check 2: Does user have write permission? If so, check ownership
+            const hasWritePermission = permissions.some(
+                (p) => p.resource === resource && p.actions && p.actions.includes('write')
+            );
 
-            // Check 3: Does user have the full permission? (e.g., "update:products")
-            if (permissions.includes(requiredPermission)) {
-                console.log(`✅ User has ${requiredPermission} permission - bypassing ownership check`);
-                return next();
-            }
-
-            // Check 3: Does user have write permission? If so, check ownership
-            if (permissions.includes(writePermission)) {
+            if (hasWritePermission) {
                 const resourceId = req.params[idParam];
 
-                if (!resourceId || !mongoose.Types.ObjectId.isValid(resourceId)) {
+                if (!resourceId) {
                     return res.status(400).json({ error: 'Invalid resource ID' });
                 }
 
                 // Load the resource to check ownership
-                const Model = mongoose.model(getModelName(resource));
+                const Model = req.models[getModelName(resource)];
+                if (!Model) {
+                    return res.status(500).json({ error: `Model not found for resource: ${resource}` });
+                }
+
                 const doc = await Model.findById(resourceId).lean();
 
                 if (!doc) {
@@ -73,7 +75,6 @@ const checkOwnershipOrPermission = (resource, action, idParam = 'id') => {
                 const isOwner = doc.createdBy && doc.createdBy.toString() === userId.toString();
 
                 if (isOwner) {
-                    console.log(`✅ User owns the ${resource} - allowing ${action}`);
                     return next();
                 }
 
@@ -83,9 +84,9 @@ const checkOwnershipOrPermission = (resource, action, idParam = 'id') => {
                 });
             }
 
-            // User has neither the permission nor ownership nor admin role
+            // User has neither the permission nor ownership
             return res.status(403).json({
-                error: `Missing permission: ${requiredPermission}`
+                error: `Missing permission: ${action}:${resource}`
             });
 
         } catch (error) {
@@ -105,9 +106,10 @@ const checkOwnershipOrPermission = (resource, action, idParam = 'id') => {
 function getModelName(resource) {
     const modelMap = {
         'products': 'Product',
-        'orders': 'Order',
-        'categories': 'Category',
-        // Add more mappings as needed
+        'orders': 'PostOrder',
+        'categories': 'ParentCategories',
+        'reviews': 'Review',
+        'customers': 'User',
     };
 
     return modelMap[resource] || resource.charAt(0).toUpperCase() + resource.slice(1);

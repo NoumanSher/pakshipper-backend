@@ -1,4 +1,3 @@
-import UserCart from "../../models/UserCart.js";
 
 /**
  * @function updateCartQuantity
@@ -40,6 +39,7 @@ import UserCart from "../../models/UserCart.js";
  */
 export const updateCartQuantity = async (req, res) => {
     try {
+        const { UserCart } = req.models;
         const { userId, cartItemId, quantity } = req.body;
 
         if (!userId || !cartItemId || quantity === undefined) {

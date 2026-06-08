@@ -1,11 +1,6 @@
-import UserCart from "../../models/UserCart.js";
-
-/**
- * @function createUserCart
- * @description Adds an item to a user's cart. If it already exists, increments the quantity.
- */
 export const createUserCart = async (req, res) => {
   try {
+    const { UserCart } = req.models;
     const { userId, productId, variantId, quantity } = req.body;
 
     // Ensure quantity is a valid number

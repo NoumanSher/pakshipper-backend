@@ -1,6 +1,5 @@
 import asyncHandler from "../../middlewares/asyncHandler.js";
-import User from "../../models/user-schema.js";
-import PostOrder from "../../models/post-order.js";
+
 import AppError from "../../utils/AppError.js";
 
 /**
@@ -12,6 +11,7 @@ import AppError from "../../utils/AppError.js";
 export const checkFirstOrderDiscount = asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
+  const { User, PostOrder } = req.models;
   const user = await User.findById(userId);
   if (!user) throw new AppError("User not found.", 404);
 

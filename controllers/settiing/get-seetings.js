@@ -1,5 +1,3 @@
-import Settings from "../../models/settings.js";
-
 /**
  * @route   GET /api/settings/
  * @desc    Retrieves the current application settings
@@ -10,6 +8,7 @@ import Settings from "../../models/settings.js";
  */
 export const getSettings = async (req, res) => {
     try {
+        const { Settings } = req.models;
         const settings = await Settings.findOne();
 
         if (!settings) {

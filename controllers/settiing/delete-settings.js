@@ -1,5 +1,6 @@
-import Settings from "../../models/settings.js";
 import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
+import { getCloudinaryConfig } from "../../services/cloudinaryFactory.js";
+import { adminConfig } from "../../utils/cloudinaryAdmin.js";
 
 /**
  * @route   DELETE /api/settings
@@ -11,6 +12,7 @@ import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
  */
 export const deleteSettings = async (req, res) => {
     try {
+        const { Settings } = req.models;
         // Fetch the settings document before deleting it to get the image URLs
         const settings = await Settings.findOne();
         
@@ -35,7 +37,8 @@ export const deleteSettings = async (req, res) => {
             
             // Delete images from Cloudinary using admin config
             if (urlsToDelete.length > 0) {
-                await deleteMultipleFromCloudinary(urlsToDelete, true);
+                const cloudConfig = getCloudinaryConfig(req.tenantConfig, 'merchant') || adminConfig;
+                await deleteMultipleFromCloudinary(urlsToDelete, cloudConfig);
             }
         }
 

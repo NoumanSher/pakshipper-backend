@@ -10,7 +10,7 @@ import asyncHandler from "../../middlewares/asyncHandler.js";
  * @returns {Object} JSON response containing all users (without password fields)
  */
 export const getAllUsers = asyncHandler(async (req, res) => {
-  const users = await UserService.getAllUsers();
+  const users = await UserService.getAllUsers(req.models);
 
   res.status(200).json({
     message: "Users fetched successfully",
