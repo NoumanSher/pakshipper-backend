@@ -69,36 +69,54 @@ export const tenantResolver = async (req, res, next) => {
   }
 
   try {
-    const domain = getRequestDomain(req);
-    
-    if (!domain) {
-      return res.status(400).json({ error: "No domain provided in Origin or Host header" });
-    }
+    const tenantSlug = req.headers['x-tenant-slug'];
+    let tenant = null;
 
-    // 1. Try to get tenant from cache
-    let tenant = tenantCache.get(domain);
+    if (tenantSlug) {
+      // 1. Try to get tenant from cache using slug
+      tenant = tenantCache.get(`slug:${tenantSlug}`);
 
-    // 2. If not in cache, lookup in Platform DB
-    if (!tenant) {
-      const platformConn = getPlatformConnection();
-      const TenantModel = platformConn.model("Tenant");
+      // 2. If not in cache, lookup in Platform DB by slug
+      if (!tenant) {
+        const platformConn = getPlatformConnection();
+        const TenantModel = platformConn.model("Tenant");
+        tenant = await TenantModel.findOne({ slug: tenantSlug }).lean();
+        if (tenant) {
+          tenantCache.set(`slug:${tenantSlug}`, tenant);
+        }
+      }
+    } else {
+      const domain = getRequestDomain(req);
       
-      // Strip "admin." prefix if present to also match the base domain
-      const baseDomain = domain.startsWith('admin.') ? domain.substring(6) : domain;
-      
-      // Find tenant where either the full domain or the base domain exists in the domains array
-      tenant = await TenantModel.findOne({ 
-        'domains.domain': { $in: [domain, baseDomain] } 
-      }).lean();
-      
-      if (tenant) {
-        // Cache the full document
-        tenantCache.set(domain, tenant);
+      if (!domain) {
+        return res.status(400).json({ error: "No domain provided in Origin or Host header" });
+      }
+
+      // 1. Try to get tenant from cache
+      tenant = tenantCache.get(domain);
+
+      // 2. If not in cache, lookup in Platform DB
+      if (!tenant) {
+        const platformConn = getPlatformConnection();
+        const TenantModel = platformConn.model("Tenant");
+        
+        // Strip "admin." prefix if present to also match the base domain
+        const baseDomain = domain.startsWith('admin.') ? domain.substring(6) : domain;
+        
+        // Find tenant where either the full domain or the base domain exists in the domains array
+        tenant = await TenantModel.findOne({ 
+          'domains.domain': { $in: [domain, baseDomain] } 
+        }).lean();
+        
+        if (tenant) {
+          // Cache the full document
+          tenantCache.set(domain, tenant);
+        }
       }
     }
 
     if (!tenant) {
-      return res.status(404).json({ error: "Store not found for this domain." });
+      return res.status(404).json({ error: tenantSlug ? `Store not found for slug "${tenantSlug}".` : "Store not found for this domain." });
     }
 
     if (tenant.status === 'suspended') {
