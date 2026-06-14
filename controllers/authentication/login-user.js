@@ -17,7 +17,12 @@ const loginSchema = z.object({
  */
 export const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = loginSchema.parse(req.body);
-  const result = await AuthService.login(req.models, email, password);
+
+  // merchantPanelMode = true when the request carries X-Tenant-Slug (i.e. comes from
+  // the Merchant Admin panel). In this mode, customer-level accounts are blocked.
+  const merchantPanelMode = !!req.headers['x-tenant-slug'];
+
+  const result = await AuthService.login(req.models, email, password, merchantPanelMode);
 
   res.status(200).json({
     message: "Login successful",

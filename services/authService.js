@@ -48,14 +48,30 @@ class AuthService {
 
   /**
    * Login a user.
+   * @param {object} models - Tenant-specific Mongoose models
+   * @param {string} email
+   * @param {string} password
+   * @param {boolean} [merchantPanelMode=false] - When true (X-Tenant-Slug present on request),
+   *   blocks customer-level users from accessing the merchant panel.
    */
-  static async login(models, email, password) {
+  static async login(models, email, password, merchantPanelMode = false) {
     const { User } = models;
     const user = await User.findOne({ email }).populate("role");
     if (!user) throw new AppError("Invalid email or password", 400);
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) throw new AppError("Invalid email or password", 400);
+
+    // Block customer-level users from the merchant panel
+    if (merchantPanelMode) {
+      const roleLevel = user.role?.level ?? 0;
+      if (roleLevel < 10) {
+        throw new AppError(
+          "Access denied. Your account does not have merchant panel access.",
+          403
+        );
+      }
+    }
 
     const tokens = this.generateTokens(user, user.role);
     user.refreshToken = tokens.refreshToken;
