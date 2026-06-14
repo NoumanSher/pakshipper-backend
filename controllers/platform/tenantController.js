@@ -412,14 +412,19 @@ export const permanentDeleteTenant = asyncHandler(async (req, res) => {
  * @access  Private/Platform Admin
  */
 export const updateTenantOwner = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, name, username } = req.body;
+  const ownerName = name || username;
 
-  if (!email && !password) {
-    throw new AppError("Provide at least an email or password to update.", 400);
+  if (!email && !password && !ownerName) {
+    throw new AppError("Provide at least an email, password, or name to update.", 400);
   }
 
   if (password && password.length < 6) {
     throw new AppError("Password must be at least 6 characters long.", 400);
+  }
+
+  if (ownerName && ownerName.trim().length === 0) {
+    throw new AppError("Owner name cannot be empty.", 400);
   }
 
   // 1. Find the tenant in Platform DB
@@ -468,12 +473,18 @@ export const updateTenantOwner = asyncHandler(async (req, res) => {
     tenant.owner.email = normalizedEmail;
   }
 
-  // 5. Update password if provided
+  // 5. Update name if provided
+  if (ownerName) {
+    ownerUser.username = ownerName.trim();
+    tenant.owner.name = ownerName.trim();
+  }
+
+  // 6. Update password if provided
   if (password) {
     ownerUser.password = await bcrypt.hash(password, 10);
   }
 
-  // 6. Save both records
+  // 7. Save both records
   await ownerUser.save({ validateBeforeSave: false });
   await tenant.save();
 
