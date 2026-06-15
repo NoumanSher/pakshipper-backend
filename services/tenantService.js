@@ -130,6 +130,7 @@ class TenantService {
       await removeTenantConnection(newTenant._id.toString()).catch(() => {});
       // Rollback platform DB record or set status to failed/deleted
       newTenant.status = "deleted";
+      newTenant.provisioningError = error.message;
       await newTenant.save().catch(() => {});
       throw new AppError(`Tenant provisioning failed: ${error.message}`, 500);
     }

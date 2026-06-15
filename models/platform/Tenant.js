@@ -55,6 +55,7 @@ const tenantSchema = new mongoose.Schema({
     default: 'provisioning'
   },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformAdmin' }, // Super Admin who created it
+  provisioningError: { type: String }, // Details of error if provisioning failed
 }, { timestamps: true });
 
 tenantSchema.index({ 'domains.domain': 1 });
