@@ -8,21 +8,31 @@ import NodeCache from "node-cache";
 const tenantCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 /**
- * Extracts the domain from the request origin or host header.
+ * Extracts the domain from the request origin, referer, or host header.
  * Cleans it up to ensure it matches the database format.
  */
 const getRequestDomain = (req) => {
-  let domain = req.headers.origin || req.headers.host;
-  if (!domain) return null;
+  let source = req.headers.origin || req.headers.referer || req.headers.host;
+  if (!source) return null;
 
-  // Remove protocol
-  domain = domain.replace(/^https?:\/\//, '');
-  // Remove port
-  domain = domain.split(':')[0];
-  // Remove trailing slash
-  domain = domain.replace(/\/$/, '');
-
-  return domain;
+  try {
+    // If it's a full URL (like from Origin or Referer), parse the hostname
+    if (source.startsWith('http://') || source.startsWith('https://')) {
+      const parsedUrl = new URL(source);
+      return parsedUrl.hostname;
+    }
+    
+    // Otherwise, clean it up manually
+    let domain = source;
+    // Remove port
+    domain = domain.split(':')[0];
+    // Remove path or trailing slash if any
+    domain = domain.split('/')[0];
+    return domain;
+  } catch (error) {
+    console.error("Error parsing domain source:", source, error);
+    return null;
+  }
 };
 
 /**
@@ -85,10 +95,10 @@ export const tenantResolver = async (req, res, next) => {
           tenantCache.set(`slug:${tenantSlug}`, tenant);
         }
       }
-    } else if (req.query.state) {
-      // OAuth callback fallback: the tenant slug is passed via the OAuth
-      // "state" parameter so it survives the redirect through Google/LinkedIn.
-      const stateSlug = req.query.state;
+    } else if (req.query.state || req.query.tenant) {
+      // OAuth callback fallback or query parameter fallback: the tenant slug is passed via the OAuth
+      // "state" parameter or "tenant" query parameter.
+      const stateSlug = req.query.state || req.query.tenant;
       tenant = tenantCache.get(`slug:${stateSlug}`);
 
       if (!tenant) {
