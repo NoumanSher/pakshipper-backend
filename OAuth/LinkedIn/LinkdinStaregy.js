@@ -27,7 +27,9 @@ export const createTenantLinkedInStrategy = (tenantId, linkedinConfig, tenantMod
         userInfoURL: "https://api.linkedin.com/v2/userinfo",
         clientID: linkedinConfig.apiKey,
         clientSecret: linkedinConfig.secretKey,
-        callbackURL: linkedinConfig.callbackUrl || `http://localhost:7418/api/auth/linkedin/callback`,
+        // Use shared backend callback URL — tenant identification is handled
+        // via the OAuth "state" parameter, not the callback URL itself.
+        callbackURL: process.env.LINKEDIN_CALLBACK_URL || `http://localhost:7418/api/auth/linkedin/callback`,
         scope: ["openid", "profile", "email"],
         passReqToCallback: true,
       },

@@ -23,7 +23,9 @@ export const createTenantGoogleStrategy = (tenantId, googleConfig, tenantModels)
       {
         clientID: googleConfig.clientId,
         clientSecret: googleConfig.clientSecret,
-        callbackURL: googleConfig.callbackUrl || `http://localhost:7418/api/auth/google/callback`,
+        // Use shared backend callback URL — tenant identification is handled
+        // via the OAuth "state" parameter, not the callback URL itself.
+        callbackURL: process.env.GOOGLE_CALLBACK_URL || `http://localhost:7418/api/auth/google/callback`,
         passReqToCallback: true,
       },
       async (req, accessToken, refreshToken, profile, done) => {

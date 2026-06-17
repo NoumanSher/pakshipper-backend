@@ -111,12 +111,17 @@ router.get(
   "/google",
   (req, res, next) => {
     const tenantId = req.tenantConfig?.tenantId;
+    const tenantSlug = req.tenantConfig?.slug;
     const googleConfig = req.tenantConfig?.oauth?.google;
     if (!googleConfig || !googleConfig.clientId || !googleConfig.clientSecret) {
       return res.status(400).json({ error: "Google OAuth is not configured for this store." });
     }
     const strategyName = createTenantGoogleStrategy(tenantId, googleConfig, req.models);
-    passport.authenticate(strategyName, { scope: ["profile", "email"] })(req, res, next);
+    // Pass tenant slug via OAuth state so the callback can resolve the tenant
+    passport.authenticate(strategyName, {
+      scope: ["profile", "email"],
+      state: tenantSlug,
+    })(req, res, next);
   }
 );
 
@@ -124,12 +129,17 @@ router.get(
   "/linkedin",
   (req, res, next) => {
     const tenantId = req.tenantConfig?.tenantId;
+    const tenantSlug = req.tenantConfig?.slug;
     const linkedinConfig = req.tenantConfig?.oauth?.linkedin;
     if (!linkedinConfig || !linkedinConfig.apiKey || !linkedinConfig.secretKey) {
       return res.status(400).json({ error: "LinkedIn OAuth is not configured for this store." });
     }
     const strategyName = createTenantLinkedInStrategy(tenantId, linkedinConfig, req.models);
-    passport.authenticate(strategyName, { scope: ["openid", "profile", "email"] })(req, res, next);
+    // Pass tenant slug via OAuth state so the callback can resolve the tenant
+    passport.authenticate(strategyName, {
+      scope: ["openid", "profile", "email"],
+      state: tenantSlug,
+    })(req, res, next);
   }
 );
 

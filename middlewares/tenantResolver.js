@@ -85,6 +85,20 @@ export const tenantResolver = async (req, res, next) => {
           tenantCache.set(`slug:${tenantSlug}`, tenant);
         }
       }
+    } else if (req.query.state) {
+      // OAuth callback fallback: the tenant slug is passed via the OAuth
+      // "state" parameter so it survives the redirect through Google/LinkedIn.
+      const stateSlug = req.query.state;
+      tenant = tenantCache.get(`slug:${stateSlug}`);
+
+      if (!tenant) {
+        const platformConn = getPlatformConnection();
+        const TenantModel = platformConn.model("Tenant");
+        tenant = await TenantModel.findOne({ slug: stateSlug }).lean();
+        if (tenant) {
+          tenantCache.set(`slug:${stateSlug}`, tenant);
+        }
+      }
     } else {
       const domain = getRequestDomain(req);
       
