@@ -14,6 +14,8 @@ import roleRoutes from "./RoleRoutes.js"; // Role management routes
 import notificationRoutes from "./notification-routes.js"; // Notification routes
 import platformAuthRoutes from "./platform/platformAuthRoutes.js"; // Platform auth
 import platformTenantRoutes from "./platform/platformTenantRoutes.js"; // Platform tenants
+import faqRoutes from "./faq-routes.js"; // FAQ routes
+import newsletterRoutes from "./newsletter-routes.js"; // Newsletter routes
 
 /**
  * Connect all application routes to the Express app.
@@ -40,6 +42,8 @@ const connectedRoutes = (app) => {
   app.use("/api/admin/dashboard", dashboardRoutes); // Dashboard statistics routes
   app.use("/api/roles", roleRoutes); // Role management routes
   app.use("/api/notifications", notificationRoutes); // Notification routes
+  app.use("/api/faqs", faqRoutes); // FAQ routes
+  app.use("/api/newsletter", newsletterRoutes); // Newsletter routes
 };
 
 export default connectedRoutes;

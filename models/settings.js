@@ -3,10 +3,18 @@ import validator from "validator";
 
 // Define a sub-schema for banner images
 const bannerImageSchema = new mongoose.Schema({
-    img: { type: String, required: true },
-    altText: { type: String, required: true },
-    link: { type: String },
-    orderNumber: { type: Number, required: true }
+    img:         { type: String, required: true },       // Desktop / landscape image
+    mobileImg:   { type: String, default: "" },          // Mobile / portrait image
+    altText:     { type: String, default: "" },
+    link:        { type: String, default: "" },
+    title:       { type: String, default: "" },
+    subtitle:    { type: String, default: "" },
+    buttonText:  { type: String, default: "" },
+    buttonLink:  { type: String, default: "" },
+    displayText: { type: Boolean, default: false },
+    sortOrder:   { type: Number, default: 0 },
+    isActive:    { type: Boolean, default: true },
+    orderNumber: { type: Number, default: 0 },           // kept for backward compat
 });
 
 // Define a sub-schema for promotional cards
@@ -18,7 +26,7 @@ const promoCardSchema = new mongoose.Schema({
     orderNumber: { type: Number, required: true }
 });
 
-// Define sub-schemas for footer links
+// Define a sub-schema for footer links
 const footerLinkItemSchema = new mongoose.Schema({
     name: { type: String, required: true },
     url: { type: String } // Not required in case it's an action link like "My Account"
@@ -27,6 +35,47 @@ const footerLinkItemSchema = new mongoose.Schema({
 const footerSectionSchema = new mongoose.Schema({
     title: { type: String, required: true },
     items: { type: [footerLinkItemSchema], default: [] }
+});
+
+// Sub-schema for About Us page settings
+const aboutUsSchema = new mongoose.Schema({
+    heroTitle: { type: String, default: "Our Story" },
+    heroSubtitle: { type: String, default: "Crafting exceptional experiences" },
+    heroImage: { type: String, default: "" },
+    storyTitle: { type: String, default: "Our Journey" },
+    storyContent: { type: String, default: "" },
+    storyImage: { type: String, default: "" },
+    stats: {
+        type: [
+            {
+                number: { type: String, required: true },
+                label: { type: String, required: true },
+            },
+        ],
+        default: [],
+    },
+    values: {
+        type: [
+            {
+                title: { type: String, required: true },
+                description: { type: String, required: true },
+                icon: { type: String, default: "star" },
+            },
+        ],
+        default: [],
+    },
+});
+
+// Sub-schema for Contact Us page settings
+const contactUsSchema = new mongoose.Schema({
+    title: { type: String, default: "Get in Touch" },
+    subtitle: { type: String, default: "We'd love to hear from you. Reach out anytime!" },
+    phone: { type: String, default: "" },
+    email: { type: String, default: "" },
+    address: { type: String, default: "" },
+    workingHours: { type: String, default: "Mon - Sat: 9:00 AM - 6:00 PM" },
+    mapEmbedUrl: { type: String, default: "" },
+    enableForm: { type: Boolean, default: true },
 });
 
 const settingsSchema = new mongoose.Schema(
@@ -48,12 +97,16 @@ const settingsSchema = new mongoose.Schema(
     youtubeUrl: { type: String, required: [true, "Link Required"] },
     privacyPolicy: { type: String, default: "" },
     termsOfService: { type: String, default: "" },
+    shippingAndReturns: { type: String, default: "" },
+    aboutUs: { type: aboutUsSchema, default: () => ({}) },
+    contactUs: { type: contactUsSchema, default: () => ({}) },
     email: {
       type: String,
       required: [true, "Email Required"],
       lowercase: true,
       validate: [validator.isEmail, "Enter Valid Email Address"]
     },
+    theme: { type: String, default: "default" },
   },
   { timestamps: true }
 );

@@ -9,6 +9,8 @@ import { UserCartSchema } from "./UserCart.js";
 import { addressSchema } from "./address.js";
 import { ReviewSchema } from "./Review.js";
 import { notificationSchema } from "./notification.js";
+import { faqSchema } from "./faq.js";
+import { newsletterSchema } from "./newsletter.js";
 
 /**
  * Compiles all tenant-specific models onto the provided Mongoose connection.
@@ -31,6 +33,8 @@ export const compileTenantModels = (connection) => {
   if (!connection.models.Address) connection.model("Address", addressSchema);
   if (!connection.models.Review) connection.model("Review", ReviewSchema);
   if (!connection.models.Notification) connection.model("Notification", notificationSchema);
+  if (!connection.models.Faq) connection.model("Faq", faqSchema);
+  if (!connection.models.Newsletter) connection.model("Newsletter", newsletterSchema);
 };
 
 /**
@@ -53,5 +57,7 @@ export const getTenantModels = (connection) => {
     Address: connection.models.Address,
     Review: connection.models.Review,
     Notification: connection.models.Notification,
+    Faq: connection.models.Faq,
+    Newsletter: connection.models.Newsletter,
   };
 };

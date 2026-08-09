@@ -328,6 +328,7 @@ class TenantService {
       youtubeUrl: "https://youtube.com",
       privacyPolicy: "We protect your privacy. Default policy text here.",
       termsOfService: "Terms and conditions of our store.",
+      shippingAndReturns: "Information on our shipping options, delivery times, and return policy.",
       email: ownerEmail.toLowerCase(),
     };
 

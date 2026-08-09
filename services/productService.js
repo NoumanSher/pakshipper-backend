@@ -353,7 +353,7 @@ class ProductService {
         .select(projection)
         .populate("parentCategoryID", "name")
         .populate("childCategoryID", "name")
-        .sort({ updatedAt: 1 })
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limitNumber)
         .lean()
@@ -539,7 +539,7 @@ class ProductService {
         .select(projection)
         .populate("parentCategoryID", "name slug")
         .populate("childCategoryID", "name slug")
-        .sort({ updatedAt: 1 })
+        .sort({ createdAt: -1 })
         .lean() : Promise.resolve([]),
 
       (async () => {
@@ -571,7 +571,7 @@ class ProductService {
           .select(projection)
           .populate("parentCategoryID", "name slug")
           .populate("childCategoryID", "name slug")
-          .sort({ updatedAt: 1 })
+          .sort({ createdAt: -1 })
           .limit(8)
           .lean();
       })()

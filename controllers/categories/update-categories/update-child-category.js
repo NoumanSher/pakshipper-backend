@@ -7,6 +7,9 @@ const updateChildCategorySchema = z.object({
   slug: z.string().min(1).optional(),
   description: z.string().optional(),
   parentCategory: z.string().min(1).optional(),
+  image: z.string().nullable().optional(),
+  sortOrder: z.number().optional(),
+  isActive: z.boolean().optional(),
 });
 
 /**
