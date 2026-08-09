@@ -23,6 +23,19 @@ const ParentCategoriesSchema = new mongoose.Schema(
         ref: "ParentCategories",
       },
     ],
+    image: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    sortOrder: {
+      type: Number,
+      default: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );

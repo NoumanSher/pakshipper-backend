@@ -7,12 +7,20 @@ class CategoryService {
    */
   static async createParentCategory(models, tenantId, data) {
     const { ParentCategories } = models;
-    const { name, slug, description, recommendedCategories } = data;
+    const { name, slug, description, recommendedCategories, image, sortOrder, isActive } = data;
 
     const existingCategory = await ParentCategories.findOne({ slug });
     if (existingCategory) throw new AppError("Slug already exists", 400);
 
-    const newCategory = new ParentCategories({ name, slug, description, recommendedCategories });
+    const newCategory = new ParentCategories({
+      name,
+      slug,
+      description,
+      recommendedCategories,
+      image: image ?? null,
+      sortOrder: sortOrder ?? 0,
+      isActive: isActive ?? true,
+    });
     await newCategory.save();
     await this._flushCache(tenantId);
 
@@ -24,9 +32,17 @@ class CategoryService {
    */
   static async createChildCategory(models, tenantId, data) {
     const { ChildCategories } = models;
-    const { name, slug, description, parentCategory } = data;
+    const { name, slug, description, parentCategory, image, sortOrder, isActive } = data;
 
-    const childCategory = new ChildCategories({ name, slug, description, parentCategory });
+    const childCategory = new ChildCategories({
+      name,
+      slug,
+      description,
+      parentCategory,
+      image: image ?? null,
+      sortOrder: sortOrder ?? 0,
+      isActive: isActive ?? true,
+    });
     await childCategory.save();
     await this._flushCache(tenantId);
 
@@ -60,7 +76,7 @@ class CategoryService {
    */
   static async getAllParentCategories(models) {
     const { ParentCategories } = models;
-    return await ParentCategories.find().sort({ updatedAt: -1 });
+    return await ParentCategories.find().sort({ sortOrder: 1, updatedAt: -1 });
   }
 
   /**
@@ -68,7 +84,7 @@ class CategoryService {
    */
   static async getAllChildCategories(models) {
     const { ChildCategories } = models;
-    return await ChildCategories.find().populate("parentCategory", "name slug").sort({ updatedAt: -1 });
+    return await ChildCategories.find().populate("parentCategory", "name slug").sort({ sortOrder: 1, updatedAt: -1 });
   }
 
   /**
@@ -80,7 +96,7 @@ class CategoryService {
     if (!parentCategory) throw new AppError("Parent category not found", 404);
 
     const childCategories = await ChildCategories.find({ parentCategory: parentCategoryId })
-      .sort({ updatedAt: -1 })
+      .sort({ sortOrder: 1, updatedAt: -1 })
       .lean();
 
     return { parentCategory, childCategories };
@@ -92,7 +108,7 @@ class CategoryService {
   static async getParentCategoriesWithChildren(models) {
     const { ParentCategories } = models;
     return await ParentCategories.aggregate([
-      { $sort: { createdAt: -1 } },
+      { $sort: { sortOrder: 1, createdAt: -1 } },
       {
         $lookup: {
           from: "childcategories",
@@ -106,7 +122,7 @@ class CategoryService {
           children: {
             $sortArray: {
               input: "$children",
-              sortBy: { createdAt: -1 }
+              sortBy: { sortOrder: 1, createdAt: -1 }
             }
           }
         }
@@ -120,8 +136,8 @@ class CategoryService {
   static async getAllCategories(models) {
     const { ParentCategories, ChildCategories } = models;
     const [parents, children] = await Promise.all([
-      ParentCategories.find().sort({ updatedAt: -1 }),
-      ChildCategories.find().populate("parentCategory", "name slug").sort({ updatedAt: -1 })
+      ParentCategories.find().sort({ sortOrder: 1, updatedAt: -1 }),
+      ChildCategories.find().populate("parentCategory", "name slug").sort({ sortOrder: 1, updatedAt: -1 })
     ]);
     return { parents, children };
   }

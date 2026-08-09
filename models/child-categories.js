@@ -22,6 +22,19 @@ const ChildCategoriesSchema = new mongoose.Schema(
       ref: "ParentCategories", // Reference to the ParentCategories schema
       required: true,
     },
+    image: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    sortOrder: {
+      type: Number,
+      default: 0,
+    },
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
   },
   { timestamps: true }
 );

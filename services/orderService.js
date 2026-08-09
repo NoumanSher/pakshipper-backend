@@ -113,17 +113,21 @@ class OrderService {
 
     const transformedResponse = this._transformOrderResponse(responsePostOrder);
 
-    // Send emails
+    // Send emails (non-blocking — order succeeds even if email is not configured)
     const { html, subject, text } = orderConfirmationTemplate(responsePostOrder, transformedResponse);
     const { html: html1, subject: adminSubject, text: adminText } = adminOrderNotificationTemplate(responsePostOrder, transformedResponse);
 
-    const emailService = createEmailService(tenantConfig.email);
-    
-    await Promise.all([
-      emailService.sendEmail(responsePostOrder.userId.email, subject, text, html),
-      emailService.sendEmail(tenantConfig.email.user, adminSubject, adminText, html1),
-      flushTenantCache(tenantConfig.tenantId)
-    ]);
+    try {
+      const emailService = createEmailService(tenantConfig.email);
+      await Promise.all([
+        emailService.sendEmail(responsePostOrder.userId.email, subject, text, html),
+        emailService.sendEmail(tenantConfig.email.user, adminSubject, adminText, html1),
+      ]);
+    } catch (emailErr) {
+      console.warn('[OrderService] Order confirmation email skipped:', emailErr.message);
+    }
+
+    await flushTenantCache(tenantConfig.tenantId);
 
     if (io) {
       io.to(`${tenantConfig.tenantId}:admins`).emit("newOrder", {
@@ -206,9 +210,13 @@ class OrderService {
     await order.save();
 
     if (order.userId && order.userId.email) {
-      const { subject, text, html } = orderStatusUpdateTemplate(order, { status, statusDesc });
-      const emailService = createEmailService(tenantConfig.email);
-      await emailService.sendEmail(order.userId.email, subject, text, html);
+      try {
+        const { subject, text, html } = orderStatusUpdateTemplate(order, { status, statusDesc });
+        const emailService = createEmailService(tenantConfig.email);
+        await emailService.sendEmail(order.userId.email, subject, text, html);
+      } catch (emailErr) {
+        console.warn('[OrderService] Status update email skipped:', emailErr.message);
+      }
     }
 
     // Save notification to database
@@ -298,14 +306,18 @@ class OrderService {
 
     await order.save();
 
-    // Send email
+    // Send email (non-blocking)
     if (order.userId?.email) {
-      const { subject, text, html } = orderStatusUpdateTemplate(order, {
-        status: "Returned",
-        statusDesc: `Your return has been processed. Reason: ${returnReason}`,
-      });
-      const emailService = createEmailService(tenantConfig.email);
-      await emailService.sendEmail(order.userId.email, subject, text, html);
+      try {
+        const { subject, text, html } = orderStatusUpdateTemplate(order, {
+          status: "Returned",
+          statusDesc: `Your return has been processed. Reason: ${returnReason}`,
+        });
+        const emailService = createEmailService(tenantConfig.email);
+        await emailService.sendEmail(order.userId.email, subject, text, html);
+      } catch (emailErr) {
+        console.warn('[OrderService] Return notification email skipped:', emailErr.message);
+      }
     }
 
     // Save in-app notification

@@ -7,6 +7,9 @@ const childCategorySchema = z.object({
   slug: z.string().min(1),
   description: z.string().optional(),
   parentCategory: z.string().min(1),
+  image: z.string().nullable().optional(),
+  sortOrder: z.number().optional(),
+  isActive: z.boolean().optional(),
 });
 
 /**
@@ -14,7 +17,7 @@ const childCategorySchema = z.object({
  * @desc    Create a new child category under a parent category
  * @access  Admin (or as per middleware)
  * @param   {Object} req - Express request object
- * @param   {Object} req.body - Contains name, slug, description, and parentCategory ID
+ * @param   {Object} req.body - Contains name, slug, description, parentCategory ID, image, sortOrder, isActive
  * @param   {Object} res - Express response object
  * @returns {Object} JSON response with created child category or error message
  */

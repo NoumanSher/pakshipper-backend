@@ -1,3 +1,6 @@
+import dns from "dns";
+dns.setServers(["8.8.8.8", "1.1.1.1"]); // Fix Windows ISP DNS SRV query failure for MongoDB Atlas
+
 import dotenv from "dotenv";
 dotenv.config(); // Load environment variables first before other imports!
 
