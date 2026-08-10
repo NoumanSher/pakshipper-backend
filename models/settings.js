@@ -78,6 +78,17 @@ const contactUsSchema = new mongoose.Schema({
     enableForm: { type: Boolean, default: true },
 });
 
+// Sub-schema for First Order Discount settings
+const firstOrderDiscountSchema = new mongoose.Schema({
+    enabled: { type: Boolean, default: true },
+    discountType: { type: String, enum: ['percentage', 'fixed'], default: 'percentage' },
+    discountValue: { type: Number, default: 5 },
+    startDate: { type: Date, default: null },
+    endDate: { type: Date, default: null },
+    title: { type: String, default: "Get 5% OFF On Your First Order" },
+    subtitle: { type: String, default: "Sign up and unlock your instant discount." }
+});
+
 const settingsSchema = new mongoose.Schema(
   {
     title: { type: String, required: true },
@@ -100,6 +111,7 @@ const settingsSchema = new mongoose.Schema(
     shippingAndReturns: { type: String, default: "" },
     aboutUs: { type: aboutUsSchema, default: () => ({}) },
     contactUs: { type: contactUsSchema, default: () => ({}) },
+    firstOrderDiscount: { type: firstOrderDiscountSchema, default: () => ({}) },
     email: {
       type: String,
       required: [true, "Email Required"],

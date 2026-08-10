@@ -10,7 +10,7 @@ class OrderService {
    * Creates a new order.
    */
   static async createOrder(models, tenantConfig, orderData, io) {
-    const { PostOrder, Product, Address, User } = models;
+    const { PostOrder, Product, Address, User, Settings } = models;
     const {
       userId,
       items,
@@ -74,12 +74,31 @@ class OrderService {
 
     const totalPrice = subTotal + deliveryFee;
 
-    // --- First-order discount (5%) ---
+    // --- Dynamic First-order discount ---
     let discountAmount = 0;
     let discountType = null;
     const user = await User.findById(userId);
-    if (user && !user.firstOrderDiscountUsed) {
-      discountAmount = Math.round(subTotal * 0.05);
+    const settings = Settings ? await Settings.findOne() : null;
+    const promoConfig = settings?.firstOrderDiscount || {
+      enabled: true,
+      discountType: "percentage",
+      discountValue: 5,
+      startDate: null,
+      endDate: null,
+    };
+
+    const now = new Date();
+    const isPromoActive =
+      promoConfig.enabled !== false &&
+      (!promoConfig.startDate || new Date(promoConfig.startDate) <= now) &&
+      (!promoConfig.endDate || new Date(promoConfig.endDate) >= now);
+
+    if (user && !user.firstOrderDiscountUsed && isPromoActive) {
+      if (promoConfig.discountType === "fixed") {
+        discountAmount = Math.min(subTotal, promoConfig.discountValue || 0);
+      } else {
+        discountAmount = Math.round(subTotal * ((promoConfig.discountValue ?? 5) / 100));
+      }
       discountType = "FIRST_ORDER";
     }
     const finalTotal = totalPrice - discountAmount;
