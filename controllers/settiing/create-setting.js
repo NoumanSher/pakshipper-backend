@@ -17,12 +17,17 @@ export const createOrUpdateSettings = async (req, res) => {
         const existingSettings = await Settings.findOne();
 
         if (existingSettings) {
+            const updateData = { ...req.body };
+            delete updateData._id;
+            delete updateData.createdAt;
+            delete updateData.updatedAt;
+
             // If settings exist, update them
             const updatedSettings = await Settings.findOneAndUpdate(
-                {},
-                req.body,
-                { new: true } // Return the updated document
-            );
+                { _id: existingSettings._id },
+                updateData,
+                { new: true, runValidators: true } // Return the updated document
+            ).lean();
 
             // Find deleted images and remove from Cloudinary
             const oldUrls = new Set();

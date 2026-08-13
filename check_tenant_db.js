@@ -4,7 +4,12 @@ import { decrypt } from "./utils/encryption.js";
 
 dotenv.config();
 
-const mongoUrl = process.env.MONGO_URL || "mongodb+srv://noumankhan:kOocpumqmC4ccjBi@pakshipper-backend.kwqdj4p.mongodb.net/pakshipper_platform?retryWrites=true&w=majority";
+const mongoUrl = process.env.MONGO_URL;
+
+if (!mongoUrl) {
+  console.error("❌ MONGO_URL environment variable is not defined.");
+  process.exit(1);
+}
 
 async function checkTenantDb() {
   try {
@@ -29,24 +34,23 @@ async function checkTenantDb() {
     }
 
     console.log("Found shoes tenant:", shoesTenant.name);
-    console.log("Encrypted DB String:", shoesTenant.database?.connectionString);
 
     const decryptedString = decrypt(shoesTenant.database?.connectionString);
-    console.log("Decrypted DB String:", decryptedString);
-
     if (decryptedString) {
       try {
         console.log("Testing connection to shoes tenant DB...");
         const shoesConn = await mongoose.createConnection(decryptedString).asPromise();
-        console.log("Connection to shoes tenant DB SUCCESSFUL!");
+        console.log("✅ Connection to shoes tenant DB SUCCESSFUL!");
         await shoesConn.close();
       } catch (connError) {
-        console.error("Connection to shoes tenant DB FAILED:", connError);
+        console.error("❌ Connection to shoes tenant DB FAILED:", connError.message);
       }
+    } else {
+      console.log("⚠️ Could not decrypt tenant connection string.");
     }
 
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error:", error.message);
   } finally {
     await mongoose.disconnect();
     process.exit(0);

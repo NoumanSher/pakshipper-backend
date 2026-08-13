@@ -1,6 +1,4 @@
-import mongoose from "mongoose";
-import { getTenantRedisKey, flushTenantCache } from "../../config/redis/redisHelpers.js";
-import client from "../../config/redis/redisClient.js";
+import { getTenantRedisKey, flushTenantCache, safeGet, safeSetEx } from "../../config/redis/redisHelpers.js";
 
 /**
  * Approve a product
@@ -215,7 +213,7 @@ export const getPendingProducts = async (req, res) => {
         const cacheKey = getTenantRedisKey(req.tenantConfig.tenantId, rawKey);
 
         // Check cache
-        const cached = await client.get(cacheKey);
+        const cached = await safeGet(cacheKey);
         if (cached) {
             console.log("✅ Cache hit (pending products)");
             return res.status(200).json(JSON.parse(cached));
@@ -247,7 +245,7 @@ export const getPendingProducts = async (req, res) => {
             }
         };
 
-        await client.setEx(cacheKey, 60, JSON.stringify(response)); // Cache for 1 minute
+        await safeSetEx(cacheKey, 60, JSON.stringify(response)); // Cache for 1 minute
         res.status(200).json(response);
     } catch (error) {
         console.error("Error fetching pending products:", error);

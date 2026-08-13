@@ -15,11 +15,18 @@ export const updateSettings = async (req, res) => {
         const { Settings } = req.models;
         const oldSettings = await Settings.findOne();
 
+        const updateData = { ...req.body };
+        delete updateData._id;
+        delete updateData.createdAt;
+        delete updateData.updatedAt;
+
+        const filter = oldSettings ? { _id: oldSettings._id } : {};
+
         const updatedSettings = await Settings.findOneAndUpdate(
-            {},
-            req.body,
+            filter,
+            updateData,
             { new: true, upsert: true, runValidators: true }
-        );
+        ).lean();
         
         // Find deleted images and remove from Cloudinary
         if (oldSettings) {

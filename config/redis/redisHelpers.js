@@ -9,6 +9,42 @@ import client from "./redisClient.js";
 export const getTenantRedisKey = (tenantId, key) => `t:${tenantId}:${key}`;
 
 /**
+ * Safe get wrapper - returns null gracefully if Redis is down/offline
+ */
+export const safeGet = async (key) => {
+  if (!client.isReady) return null;
+  try {
+    return await client.get(key);
+  } catch (error) {
+    return null;
+  }
+};
+
+/**
+ * Safe setEx wrapper - fails silently if Redis is down/offline
+ */
+export const safeSetEx = async (key, ttl, value) => {
+  if (!client.isReady) return;
+  try {
+    await client.setEx(key, ttl, value);
+  } catch (error) {
+    // Ignore cache set errors
+  }
+};
+
+/**
+ * Safe del wrapper - fails silently if Redis is down/offline
+ */
+export const safeDel = async (key) => {
+  if (!client.isReady) return;
+  try {
+    await client.del(key);
+  } catch (error) {
+    // Ignore cache delete errors
+  }
+};
+
+/**
  * Flush only the cache keys belonging to a specific tenant using SCAN + DEL pattern.
  * This replaces client.flushAll() which would wipe all tenants' cache.
  * 
@@ -16,7 +52,6 @@ export const getTenantRedisKey = (tenantId, key) => `t:${tenantId}:${key}`;
  */
 export const flushTenantCache = async (tenantId) => {
   if (!client.isReady) {
-    console.warn("⚠️ Redis client not ready, cannot flush tenant cache.");
     return;
   }
 
@@ -42,6 +77,6 @@ export const flushTenantCache = async (tenantId) => {
     
     console.log(`🧹 Flushed cache for tenant: ${tenantId}`);
   } catch (error) {
-    console.error(`❌ Error flushing cache for tenant ${tenantId}:`, error);
+    console.warn(`⚠️ Error flushing cache for tenant ${tenantId}:`, error.message || error);
   }
 };

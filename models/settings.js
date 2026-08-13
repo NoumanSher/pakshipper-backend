@@ -37,6 +37,8 @@ const footerSectionSchema = new mongoose.Schema({
     items: { type: [footerLinkItemSchema], default: [] }
 });
 
+
+
 // Sub-schema for About Us page settings
 const aboutUsSchema = new mongoose.Schema({
     heroTitle: { type: String, default: "Our Story" },
@@ -64,7 +66,7 @@ const aboutUsSchema = new mongoose.Schema({
         ],
         default: [],
     },
-});
+}, { _id: false });
 
 // Sub-schema for Contact Us page settings
 const contactUsSchema = new mongoose.Schema({
@@ -76,7 +78,7 @@ const contactUsSchema = new mongoose.Schema({
     workingHours: { type: String, default: "Mon - Sat: 9:00 AM - 6:00 PM" },
     mapEmbedUrl: { type: String, default: "" },
     enableForm: { type: Boolean, default: true },
-});
+}, { _id: false });
 
 // Sub-schema for First Order Discount settings
 const firstOrderDiscountSchema = new mongoose.Schema({
@@ -87,7 +89,16 @@ const firstOrderDiscountSchema = new mongoose.Schema({
     endDate: { type: Date, default: null },
     title: { type: String, default: "Get 5% OFF On Your First Order" },
     subtitle: { type: String, default: "Sign up and unlock your instant discount." }
-});
+}, { _id: false });
+
+// Sub-schema for Dynamic Shipping settings
+const shippingSettingSchema = new mongoose.Schema({
+    shippingType: { type: String, enum: ['free', 'flat', 'conditional_free'], default: 'free' },
+    flatRate: { type: Number, default: 0 },
+    freeShippingMinAmount: { type: Number, default: 2000 },
+    shippingLabel: { type: String, default: "Standard Delivery" },
+    freeShippingText: { type: String, default: "Free Delivery" }
+}, { _id: false });
 
 const settingsSchema = new mongoose.Schema(
   {
@@ -112,6 +123,7 @@ const settingsSchema = new mongoose.Schema(
     aboutUs: { type: aboutUsSchema, default: () => ({}) },
     contactUs: { type: contactUsSchema, default: () => ({}) },
     firstOrderDiscount: { type: firstOrderDiscountSchema, default: () => ({}) },
+    shippingSetting: { type: shippingSettingSchema, default: () => ({}) },
     email: {
       type: String,
       required: [true, "Email Required"],
