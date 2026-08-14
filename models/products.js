@@ -176,7 +176,7 @@ const ProductSchema = new mongoose.Schema(
       index: true,
     },
   },
-  { timestamps: true }
+  { timestamps: true, suppressReservedKeysWarning: true }
 );
 
 // Add unique index for slug (only for non-deleted products)

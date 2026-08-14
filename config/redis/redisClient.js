@@ -24,16 +24,21 @@ const client = createClient({
 });
 
 client.on("error", (err) => {
+  const msg = err?.message || String(err);
+  // Ignore routine socket reconnect blips from cloud Redis idle timeouts
+  if (msg.includes("Socket closed unexpectedly") || msg.includes("ECONNRESET")) {
+    return;
+  }
   // Throttle error logs to once every 60 seconds
   const now = Date.now();
   if (now - lastErrorLoggedTime > 60000) {
-    console.warn("⚠️ Redis Client Warning (running in fallback mode without cache):", err.message || err);
+    console.warn("⚠️ Redis Client Warning (running in fallback mode without cache):", msg);
     lastErrorLoggedTime = now;
   }
 });
 
 client.on("connect", () => {
-  console.log("✅ Redis connected".red.underline);
+  console.log("✅ Redis connected".green);
 });
 
 // Non-blocking asynchronous connection initialization
