@@ -19,11 +19,9 @@ import { newsletterSchema } from "./newsletter.js";
  * @returns {void}
  */
 export const compileTenantModels = (connection) => {
-  // We use .model() which will either compile a new model or return the existing one
-  // on this specific connection.
+  if (!connection.models.Settings) connection.model("Settings", settingsSchema);
   if (!connection.models.User) connection.model("User", userSchema);
   if (!connection.models.Role) connection.model("Role", roleSchema);
-  if (!connection.models.Settings) connection.model("Settings", settingsSchema);
   if (!connection.models.Product) connection.model("Product", ProductSchema);
   if (!connection.models.Counter) connection.model("Counter", counterSchema);
   if (!connection.models.PostOrder) connection.model("PostOrder", postOrderSchema);

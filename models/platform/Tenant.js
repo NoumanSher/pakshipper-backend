@@ -59,7 +59,6 @@ const tenantSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 tenantSchema.index({ 'domains.domain': 1 });
-tenantSchema.index({ slug: 1 });
 tenantSchema.index({ status: 1 });
 
 export default mongoose.model("Tenant", tenantSchema);

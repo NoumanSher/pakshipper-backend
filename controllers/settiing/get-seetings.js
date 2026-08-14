@@ -9,11 +9,26 @@
 export const getSettings = async (req, res) => {
     try {
         const { Settings } = req.models;
-        const settings = await Settings.findOne();
+        
+        const settings = await Settings.findOne().lean();
 
         if (!settings) {
             return res.status(404).json({ message: "Settings not found" });
         }
+
+        if (!settings.shippingSetting) {
+            settings.shippingSetting = {
+                shippingType: 'free',
+                flatRate: 0,
+                freeShippingMinAmount: 2000,
+                shippingLabel: 'Standard Delivery',
+                freeShippingText: 'Free Delivery'
+            };
+        }
+
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
 
         res.status(200).json(settings);
     } catch (error) {

@@ -1,5 +1,4 @@
-import client from "../config/redis/redisClient.js";
-import { getTenantRedisKey, flushTenantCache } from "../config/redis/redisHelpers.js";
+import { getTenantRedisKey, flushTenantCache, safeGet, safeSetEx } from "../config/redis/redisHelpers.js";
 import mongoose from "mongoose";
 import AppError from "../utils/AppError.js";
 import cloudinary from "../utils/cloudinary.js";
@@ -50,7 +49,7 @@ class ProductService {
     const baseKey = isAdminRequest ? `product:admin:${id}` : `product::${id}`;
     const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
-    const cached = await client.get(cacheKey);
+    const cached = await safeGet(cacheKey);
     if (cached) {
       console.log(`✅ Cache hit (${isAdminRequest ? 'Admin' : 'Public'})`);
       return JSON.parse(cached);
@@ -85,7 +84,7 @@ class ProductService {
       data: transformedProduct,
     };
 
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
+    await safeSetEx(cacheKey, 300, JSON.stringify(response));
 
     return response;
   }
@@ -98,7 +97,7 @@ class ProductService {
     const baseKey = `product:slug:${slug}`;
     const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
-    const cached = await client.get(cacheKey);
+    const cached = await safeGet(cacheKey);
     if (cached) {
       console.log("✅ Cache hit (by Slug)");
       return JSON.parse(cached);
@@ -169,7 +168,7 @@ class ProductService {
       },
     };
 
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
+    await safeSetEx(cacheKey, 300, JSON.stringify(response));
 
     return response;
   }
@@ -320,7 +319,7 @@ class ProductService {
     }).toString()}`;
     const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
-    const cached = await client.get(cacheKey);
+    const cached = await safeGet(cacheKey);
     if (cached) {
       console.log(`✅ Cache hit (mode: ${mode})`);
       return JSON.parse(cached);
@@ -395,7 +394,7 @@ class ProductService {
       }),
     };
 
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
+    await safeSetEx(cacheKey, 300, JSON.stringify(response));
     return response;
   }
 
@@ -488,7 +487,7 @@ class ProductService {
     }).toString()}`;
     const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
-    const cached = await client.get(cacheKey);
+    const cached = await safeGet(cacheKey);
     if (cached) {
       console.log("✅ Cache hit (related-info)");
       return JSON.parse(cached);
@@ -595,7 +594,7 @@ class ProductService {
       }
     };
 
-    await client.setEx(cacheKey, 300, JSON.stringify(response));
+    await safeSetEx(cacheKey, 300, JSON.stringify(response));
 
     return response;
   }

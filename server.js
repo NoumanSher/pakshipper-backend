@@ -1,5 +1,12 @@
+// ── DNS Override (centralized) ──────────────────────────────────────────────
+// Fix Windows ISP DNS SRV query failure for MongoDB Atlas.
+// This MUST run before any MongoDB connection is attempted.
+// Kept in server.js as the single source of truth — do NOT duplicate in other modules.
 import dns from "dns";
-dns.setServers(["8.8.8.8", "1.1.1.1"]); // Fix Windows ISP DNS SRV query failure for MongoDB Atlas
+dns.setServers(["8.8.8.8", "1.1.1.1"]);
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder("ipv4first");
+}
 
 import dotenv from "dotenv";
 dotenv.config(); // Load environment variables first before other imports!
@@ -9,7 +16,8 @@ import cors from "cors";
 import path from "path";
 import colors from "colors";
 import { fileURLToPath } from "url";
-import { connectToPlatformDB, getPlatformConnection } from "./config/platformConnection.js"; // Platform MongoDB connection
+import { connectToPlatformDB, getPlatformConnection, closePlatformConnection } from "./config/platformConnection.js";
+import { closeAllConnections } from "./config/connectionPool.js";
 import NodeCache from "node-cache";
 import morgan from "morgan";
 import { createServer } from "http";
@@ -163,6 +171,55 @@ try {
   console.error("❌ Server failed to start due to DB connection error:".red.bold, err);
   process.exit(1); // Exit if DB connection fails
 }
+
+// ── Graceful Shutdown ─────────────────────────────────────────────────────────
+// Ensures MongoDB connections are properly closed on SIGINT (Ctrl+C) and
+// SIGTERM (process manager / nodemon restart), preventing connection leaks.
+let isShuttingDown = false;
+
+const gracefulShutdown = async (signal) => {
+  if (isShuttingDown) {
+    console.log(`⚠️ Signal ${signal} received during active shutdown. Ignoring...`);
+    return;
+  }
+  isShuttingDown = true;
+  console.log(`\n⏳ Received ${signal}. Shutting down gracefully...`);
+
+  // Force exit fallback timeout (10 seconds)
+  const forceExitTimeout = setTimeout(() => {
+    console.error("⚠️ Graceful shutdown timed out after 10s. Forcing exit...");
+    process.exit(1);
+  }, 10000);
+
+  try {
+    // 1. Stop accepting new HTTP connections
+    await new Promise((resolve) => {
+      httpServer.close((err) => {
+        if (err && err.code !== "ERR_SERVER_NOT_RUNNING") {
+          console.error("⚠️ Error closing HTTP server:", err.message);
+        }
+        resolve();
+      });
+    });
+
+    // 2. Close all tenant MongoDB connections
+    await closeAllConnections();
+
+    // 3. Close Platform MongoDB connection
+    await closePlatformConnection();
+
+    clearTimeout(forceExitTimeout);
+    console.log("✅ Graceful shutdown complete.");
+    process.exit(0);
+  } catch (err) {
+    clearTimeout(forceExitTimeout);
+    console.error("❌ Error during graceful shutdown:", err.message);
+    process.exit(1);
+  }
+};
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 
 // Export app
 export default app;

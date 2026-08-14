@@ -6,6 +6,7 @@ import { createOrUpdateSettings } from "../controllers/settiing/create-setting.j
 import { updateSettings } from "../controllers/settiing/update-settings.js";
 import { deleteSettings } from "../controllers/settiing/delete-settings.js";
 
+// Router for tenant store settings
 const router = express.Router();
 
 /**

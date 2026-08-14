@@ -1,6 +1,5 @@
 import mongoose from "mongoose";
-import { getTenantRedisKey } from "../../config/redis/redisHelpers.js";
-import client from "../../config/redis/redisClient.js";
+import { getTenantRedisKey, safeDel } from "../../config/redis/redisHelpers.js";
 import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
 
 /**
@@ -430,7 +429,7 @@ export const statusApprove = async (req, res) => {
     }
 
     // Clear Redis cache for the specific product
-    await client.del(getTenantRedisKey(req.tenantConfig.tenantId, `product::${review.productId}`));
+    await safeDel(getTenantRedisKey(req.tenantConfig.tenantId, `product::${review.productId}`));
 
     res.status(200).json({
       message: `Review ${status} successfully`,
