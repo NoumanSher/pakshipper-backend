@@ -63,8 +63,8 @@ export const createTenantLinkedInStrategy = (tenantId, linkedinConfig, tenantMod
                 10
               );
 
-              // Get default customer role
-              const customerRole = await Role.findOne({ name: "customer" });
+              // Get default storefront user role
+              const customerRole = await Role.findOne({ name: "user" });
 
               user = await User.create({
                 email,
@@ -81,7 +81,7 @@ export const createTenantLinkedInStrategy = (tenantId, linkedinConfig, tenantMod
             {
               id: user._id,
               email: user.email,
-              role: user.role?.name || "customer",
+              role: user.role?.name || "user",
               roleLevel: user.role?.level || 0,
             },
             process.env.SECRET_KEY,

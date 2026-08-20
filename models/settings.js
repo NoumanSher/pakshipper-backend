@@ -34,7 +34,14 @@ const footerLinkItemSchema = new mongoose.Schema({
 
 const footerSectionSchema = new mongoose.Schema({
     title: { type: String, required: true },
-    items: { type: [footerLinkItemSchema], default: [] }
+    items: {
+        type: [footerLinkItemSchema],
+        default: [],
+        validate: [
+            (val) => !Array.isArray(val) || val.length <= 6,
+            "Footer navigation section cannot exceed 6 links."
+        ]
+    }
 });
 
 
@@ -112,11 +119,11 @@ const settingsSchema = new mongoose.Schema(
     bannerImages: { type: [bannerImageSchema], required: true }, // Array of bannerImageSchema
     promoCards: { type: [promoCardSchema], default: [] }, // Array of promo cards
     footerLinks: { type: [footerSectionSchema], default: [] }, // Array of footer link columns
-    twitterUrl: { type: String, required: [true, "Link Required"] },
-    facebookUrl: { type: String, required: [true, "Link Required"] },
-    instagramUrl: { type: String, required: [true, "Link Required"] },
-    pinterestUrl: { type: String, required: [true, "Link Required"] },
-    youtubeUrl: { type: String, required: [true, "Link Required"] },
+    twitterUrl: { type: String, default: "" },
+    facebookUrl: { type: String, default: "" },
+    instagramUrl: { type: String, default: "" },
+    pinterestUrl: { type: String, default: "" },
+    youtubeUrl: { type: String, default: "" },
     privacyPolicy: { type: String, default: "" },
     termsOfService: { type: String, default: "" },
     shippingAndReturns: { type: String, default: "" },

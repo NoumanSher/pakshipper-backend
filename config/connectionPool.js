@@ -95,6 +95,21 @@ const _createTenantConnection = async (tenantId, connectionString) => {
     // Compile models onto this specific connection (idempotent)
     compileTenantModels(connection);
 
+    // Self-healing migration: seamlessly rename legacy "customer" role to "user"
+    const Role = connection.model("Role");
+    Role.updateOne(
+      { name: "customer" },
+      {
+        $set: {
+          name: "user",
+          displayName: "User",
+          description: "Default role for storefront registered users. Not a merchant team role.",
+          isSystem: true,
+          level: 5,
+        },
+      }
+    ).catch(() => {});
+
     // Add to pool ONLY after successful connection & model compilation
     connectionPool.set(tenantId, {
       connection,

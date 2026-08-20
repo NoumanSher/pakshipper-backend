@@ -15,10 +15,35 @@ export const updateSettings = async (req, res) => {
         const { Settings } = req.models;
         const oldSettings = await Settings.findOne();
 
-        const updateData = { ...req.body };
+        const { lastKnownUpdatedAt, ...bodyData } = req.body;
+
+        // Concurrency conflict check: if client sent lastKnownUpdatedAt and document was updated since
+        if (
+            lastKnownUpdatedAt &&
+            oldSettings?.updatedAt &&
+            new Date(oldSettings.updatedAt).getTime() > new Date(lastKnownUpdatedAt).getTime() + 1000
+        ) {
+            return res.status(409).json({
+                message: "Settings have been modified by another administrator. Please refresh the page to load the latest changes.",
+                latestUpdatedAt: oldSettings.updatedAt,
+            });
+        }
+
+        const updateData = { ...bodyData };
         delete updateData._id;
         delete updateData.createdAt;
         delete updateData.updatedAt;
+
+        // Enforce maximum 6 links per footer navigation section
+        if (Array.isArray(updateData.footerLinks)) {
+            for (const section of updateData.footerLinks) {
+                if (Array.isArray(section.items) && section.items.length > 6) {
+                    return res.status(400).json({
+                        message: `Footer navigation section "${section.title || 'Links'}" cannot contain more than 6 links.`,
+                    });
+                }
+            }
+        }
 
         const filter = oldSettings ? { _id: oldSettings._id } : {};
 

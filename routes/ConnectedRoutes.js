@@ -16,6 +16,7 @@ import platformAuthRoutes from "./platform/platformAuthRoutes.js"; // Platform a
 import platformTenantRoutes from "./platform/platformTenantRoutes.js"; // Platform tenants
 import faqRoutes from "./faq-routes.js"; // FAQ routes
 import newsletterRoutes from "./newsletter-routes.js"; // Newsletter routes
+import publicRoutes from "./public-routes.js"; // Public unauthenticated routes
 
 /**
  * Connect all application routes to the Express app.
@@ -24,6 +25,9 @@ import newsletterRoutes from "./newsletter-routes.js"; // Newsletter routes
  */
 
 const connectedRoutes = (app) => {
+  // Public unauthenticated routes (pre-tenant & pre-login)
+  app.use("/api/public", publicRoutes);
+
   // Platform routes (Super Admin)
   app.use("/api/platform/auth", platformAuthRoutes);
   app.use("/api/platform/tenants", platformTenantRoutes);

@@ -21,8 +21,14 @@ class ProductService {
    */
   static async createProduct(models, tenantConfig, productData, userId) {
     const { Product } = models;
+    let finalStock = Number(productData.stock) || 0;
+    if (productData.isVariant && Array.isArray(productData.variants) && productData.variants.length > 0) {
+      finalStock = productData.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
+    }
+
     const newProduct = new Product({
       ...productData,
+      stock: finalStock,
       createdBy: userId,
     });
 
@@ -306,12 +312,11 @@ class ProductService {
     const limitNumber = parseInt(limit, 10) || 8;
     const skip = (pageNumber - 1) * limitNumber;
 
-    const baseKey = `products::${new URLSearchParams({
+    const baseKey = `products::all::${mode}::${new URLSearchParams({
       pID: query.parentCategoryID || "",
       cID: query.childCategoryID || "",
       pS: parentCategorySlug || "",
       cS: childCategorySlug || "",
-      m: mode,
       p: pageNumber,
       l: limitNumber,
       as: approvalStatus || "",
@@ -319,10 +324,14 @@ class ProductService {
     }).toString()}`;
     const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
-    const cached = await safeGet(cacheKey);
-    if (cached) {
-      console.log(`✅ Cache hit (mode: ${mode})`);
-      return JSON.parse(cached);
+    // Admin & merchant management queries must always receive live data, never stale cache
+    const shouldCache = !isAdminRequest && mode !== "admin";
+    if (shouldCache) {
+      const cached = await safeGet(cacheKey);
+      if (cached) {
+        console.log(`✅ Cache hit (mode: ${mode})`);
+        return JSON.parse(cached);
+      }
     }
 
     let projection = {};
@@ -340,8 +349,7 @@ class ProductService {
       };
     } else if (mode === "admin") {
       projection = {
-        ...commonProjection,
-        seo: 0,
+        __v: 0,
       };
     } else if (mode === "images") {
       projection = { "images.src": 1, "images.alt": 1, productName: 1, "seo.slug": 1, _id: 0, parentCategoryID: 0, childCategoryID: 0 };
@@ -394,7 +402,9 @@ class ProductService {
       }),
     };
 
-    await safeSetEx(cacheKey, 300, JSON.stringify(response));
+    if (shouldCache) {
+      await safeSetEx(cacheKey, 300, JSON.stringify(response));
+    }
     return response;
   }
 
@@ -436,7 +446,9 @@ class ProductService {
         }
       }
     }
-    // --- End Cloudinary cleanup ---
+    if (updateData.isVariant && Array.isArray(updateData.variants) && updateData.variants.length > 0) {
+      updateData.stock = updateData.variants.reduce((acc, v) => acc + (Number(v.stock) || 0), 0);
+    }
 
     if (currentProduct.approvalStatus === 'rejected') {
       updateData.approvalStatus = 'pending';

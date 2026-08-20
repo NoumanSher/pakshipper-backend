@@ -7,6 +7,7 @@ import {
   getProductById,
   getProductBySlug,
   updateProduct,
+  restoreProduct,
   getProductRelatedInfo,
 } from "../controllers/products/products-controller.js";
 import {
@@ -75,6 +76,7 @@ router.get("/get-all-products", getAllProducts);
  * @access  Admin
  */
 router.put("/update-product/:id", authMiddleware, checkOwnershipOrPermission("products", "update"), updateProduct);
+router.patch("/:id/restore", authMiddleware, checkOwnershipOrPermission("products", "update"), restoreProduct);
 
 /**
  * @route   GET /api/products/get-product-related-info

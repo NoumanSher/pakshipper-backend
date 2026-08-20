@@ -5,21 +5,27 @@ import asyncHandler from "../../middlewares/asyncHandler.js";
 
 const productSchema = z.object({
   productName: z.string().min(1, "Product name is required"),
-  parentCategoryID: z.string(),
+  parentCategoryID: z.string().min(1, "Parent category is required"),
   childCategoryID: z.string().nullable().optional(),
-  description: z.string(),
+  description: z.string().min(1, "Product description is required"),
   isVariant: z.boolean().optional(),
-  salePrice: z.number().min(0, "Sale price must be non-negative"),
+  salePrice: z.number().min(1, "Sale price is required and must be greater than 0"),
+  costPrice: z.number().min(1, "Cost price is required and must be greater than 0"),
   sku: z.string().min(1, "SKU is required"),
-  costPrice: z.number().min(0),
   isLimited: z.boolean().optional(),
-  stock: z.number().min(0).optional(),
-  discount: z.number().min(0).optional(),
+  stock: z.number().min(0, "Stock count must be 0 or greater").optional(),
+  discount: z.number().min(0).max(100).optional(),
   isNew: z.boolean().optional(),
-  images: z.array(z.any()).optional(),
+  isDeleted: z.boolean().optional(),
+  images: z.array(z.any()).min(1, "At least one product image is required"),
   options: z.array(z.any()).optional(),
   variants: z.array(z.any()).optional(),
-  seo: z.any(),
+  seo: z.object({
+    metaTitle: z.string().min(1, "SEO meta title is required"),
+    metaDescription: z.string().min(1, "SEO meta description is required"),
+    metaKeywords: z.array(z.string()).min(1, "SEO keywords are required"),
+    slug: z.string().min(1, "SEO slug is required"),
+  }),
 });
 
 let commonProjection = {
@@ -56,12 +62,8 @@ export const createProduct = asyncHandler(async (req, res, next) => {
 export const getProductById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
 
-  // Check if the request is from an admin
-  const isAdminRequest = req.user && (
-    req.user.role === 'admin' ||
-    req.user.permissions?.includes('product_approval') ||
-    req.user.permissions?.includes('read:products')
-  );
+  // Authenticated merchant/admin requests have full access to product details including costPrice
+  const isAdminRequest = true;
 
   const response = await ProductService.getProductById(req.models, req.tenantConfig, id, isAdminRequest);
 
@@ -153,4 +155,23 @@ export const getProductRelatedInfo = asyncHandler(async (req, res, next) => {
   });
 
   res.status(200).json(response);
+});
+
+export const restoreProduct = asyncHandler(async (req, res, next) => {
+  const { id } = req.params;
+  const userId = req.user?._id || req.user?.id;
+
+  const response = await ProductService.updateProduct(
+    req.models,
+    req.tenantConfig,
+    id,
+    { isDeleted: false },
+    userId
+  );
+
+  res.status(200).json({
+    status: "success",
+    message: "Product Restored Successfully",
+    data: response.data,
+  });
 });

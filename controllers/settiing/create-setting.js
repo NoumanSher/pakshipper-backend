@@ -22,6 +22,17 @@ export const createOrUpdateSettings = async (req, res) => {
             delete updateData.createdAt;
             delete updateData.updatedAt;
 
+            // Enforce maximum 6 links per footer navigation section
+            if (Array.isArray(updateData.footerLinks)) {
+                for (const section of updateData.footerLinks) {
+                    if (Array.isArray(section.items) && section.items.length > 6) {
+                        return res.status(400).json({
+                            message: `Footer navigation section "${section.title || 'Links'}" cannot contain more than 6 links.`,
+                        });
+                    }
+                }
+            }
+
             // If settings exist, update them
             const updatedSettings = await Settings.findOneAndUpdate(
                 { _id: existingSettings._id },

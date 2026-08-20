@@ -25,8 +25,9 @@ import { deleteMultipleFromCloudinary } from "../../utils/cloudinaryHelper.js";
  */
 export const createReview = async (req, res) => {
   try {
-    const { Product: products, User: userSchema, Review } = req.models;
-    const { userId, productId, rating, description, images, createdAt } = req.body;
+    const { Product: products, User: userSchema, Review, PostOrder: postOrder } = req.models;
+    const userId = req.user?._id || req.user?.id;
+    const { productId, rating, description, images } = req.body;
 
     // Validate required fields
     if (!userId || !productId || !rating || !description) {
@@ -55,14 +56,29 @@ export const createReview = async (req, res) => {
       });
     }
 
+    // Determine if verified purchase (user ordered product & status is Delivered)
+    let isVerifiedPurchase = false;
+    if (postOrder) {
+      const hasOrderedDelivered = await postOrder.exists({
+        userId,
+        items: {
+          $elemMatch: { productId: new mongoose.Types.ObjectId(productId) },
+        },
+        orderStatuses: {
+          $elemMatch: { status: "Delivered" },
+        },
+      });
+      isVerifiedPurchase = !!hasOrderedDelivered;
+    }
+
     // Create and save new review
     const newReview = new Review({
       userId,
       productId,
       rating,
       description,
-      images,
-      ...(createdAt && { createdAt }),
+      images: Array.isArray(images) ? images : [],
+      isVerifiedPurchase,
     });
 
     const savedReview = await newReview.save();
@@ -243,7 +259,8 @@ export const userReviewEdit = async (req, res) => {
   try {
     const { Review } = req.models;
     const { reviewId } = req.params;
-    const { rating, description, userId } = req.body;
+    const userId = req.user?._id || req.user?.id;
+    const { rating, description, images } = req.body;
 
     // Validate review ID format
     if (!mongoose.Types.ObjectId.isValid(reviewId)) {
@@ -257,7 +274,7 @@ export const userReviewEdit = async (req, res) => {
     }
 
     // Check if the review belongs to the user
-    if (review.userId.toString() !== userId) {
+    if (review.userId.toString() !== userId?.toString()) {
       return res.status(403).json({
         message: "You can only edit your own reviews",
       });
@@ -266,6 +283,7 @@ export const userReviewEdit = async (req, res) => {
     // Apply changes if provided
     if (rating !== undefined) review.rating = rating;
     if (description !== undefined) review.description = description;
+    if (images !== undefined && Array.isArray(images)) review.images = images;
 
     // Reset status to pending for re-approval
     if (review.status === "approved") {
@@ -463,7 +481,7 @@ export const deleteReveiw = async (req, res) => {
   try {
     const { Review } = req.models;
     const { reviewId } = req.params;
-    const { userId, isAdmin } = req.body;
+    const userId = req.user?._id || req.user?.id;
 
     // Validate reviewId
     if (!mongoose.Types.ObjectId.isValid(reviewId)) {
@@ -476,8 +494,24 @@ export const deleteReveiw = async (req, res) => {
       return res.status(404).json({ message: "Review not found" });
     }
 
+    // Check if user is admin / has delete permissions
+    const rawRole = req.user?.role;
+    const roleName = (typeof rawRole === "string" ? rawRole : rawRole?.name || "").toLowerCase();
+    const roleLevel = Number(req.user?.roleLevel ?? req.user?.role?.level ?? 0);
+    const hasAdminRole =
+      roleName === "owner" ||
+      roleName === "store_admin" ||
+      roleName === "admin" ||
+      roleLevel >= 80;
+    const hasDeletePermission = Array.isArray(req.user?.role?.permissions)
+      ? req.user.role.permissions.some(
+          (p) => p.resource === "reviews" && p.actions?.includes("delete")
+        )
+      : false;
+    const isAdmin = hasAdminRole || hasDeletePermission || req.originalUrl?.includes("/admin/");
+
     // Permission check: user must own the review, unless admin
-    if (!isAdmin && review.userId.toString() !== userId) {
+    if (!isAdmin && review.userId.toString() !== userId?.toString()) {
       return res.status(403).json({
         message: "You can only delete your own reviews",
       });
@@ -486,14 +520,12 @@ export const deleteReveiw = async (req, res) => {
     // Delete associated images from Cloudinary
     if (review.images && review.images.length > 0) {
       // Review images are uploaded using standard config, so useAdminConfig = false
-      await deleteMultipleFromCloudinary(review.images, false).catch(err => 
+      await deleteMultipleFromCloudinary(review.images, false).catch((err) =>
         console.error("Cloudinary image deletion failed for review:", err)
       );
     }
 
     await Review.findByIdAndDelete(reviewId);
-
-    // Optional: Clear product cache or update product's review count if needed
 
     res.status(200).json({
       message: "Review and associated images deleted successfully",
@@ -528,18 +560,34 @@ export const userAllReveiw = async (req, res) => {
   try {
     const { Review } = req.models;
     const { userId } = req.params;
-    const {
-      status = "approved",
-      page = 1,
-      limit = 10,
-      sortBy = "createdAt",
-      sortOrder = "desc",
-    } = req.query;
+    const requesterId = req.user?._id || req.user?.id;
+    const rawRole = req.user?.role;
+    const roleName = (typeof rawRole === "string" ? rawRole : rawRole?.name || "").toLowerCase();
+    const roleLevel = Number(req.user?.roleLevel ?? req.user?.role?.level ?? 0);
+    const isSelfOrAdmin =
+      requesterId?.toString() === userId ||
+      roleName === "owner" ||
+      roleName === "store_admin" ||
+      roleName === "admin" ||
+      roleLevel >= 80;
 
     // Validate userId
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: "Invalid user ID" });
     }
+
+    if (!isSelfOrAdmin) {
+      return res.status(403).json({
+        message: "Access denied. You can only view your own reviews.",
+      });
+    }
+
+    const {
+      page = 1,
+      limit = 10,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
 
     const skip = (page - 1) * limit;
     const sort = { [sortBy]: sortOrder === "desc" ? -1 : 1 };
@@ -574,9 +622,11 @@ export const userAllReveiw = async (req, res) => {
 export const toggleHelpfulReview = async (req, res) => {
   try {
     const { Review } = req.models;
-    const { userId, reviewId } = req.body;
+    const userId = req.user?._id || req.user?.id;
+    const { reviewId } = req.body;
 
     if (
+      !userId ||
       !mongoose.Types.ObjectId.isValid(userId) ||
       !mongoose.Types.ObjectId.isValid(reviewId)
     ) {
@@ -614,3 +664,114 @@ export const toggleHelpfulReview = async (req, res) => {
     });
   }
 };
+
+/**
+ * Admin: Create a manual review seeded for a specific user and product.
+ *
+ * @param {Express.Request} req - HTTP request object
+ * @param {Express.Response} res - HTTP response object
+ */
+export const adminManualCreateReview = async (req, res) => {
+  try {
+    const { Product: products, User: userSchema, Review } = req.models;
+    const {
+      userId,
+      productId,
+      rating,
+      description,
+      images,
+      createdAt,
+      status = "approved",
+    } = req.body;
+
+    if (!userId || !productId || !rating || !description) {
+      return res.status(400).json({
+        message: "User, Product, Rating, and Description are required.",
+      });
+    }
+
+    if (
+      !mongoose.Types.ObjectId.isValid(userId) ||
+      !mongoose.Types.ObjectId.isValid(productId)
+    ) {
+      return res.status(400).json({ message: "Invalid user ID or product ID." });
+    }
+
+    const user = await userSchema.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found." });
+    }
+
+    const product = await products.findById(productId);
+    if (!product) {
+      return res.status(404).json({ message: "Product not found." });
+    }
+
+    const existingReview = await Review.findOne({ userId, productId });
+    if (existingReview) {
+      return res.status(400).json({
+        message: "This user has already reviewed this product.",
+      });
+    }
+
+    const reviewStatus = ["pending", "approved", "rejected"].includes(status)
+      ? status
+      : "approved";
+
+    const newReview = new Review({
+      userId,
+      productId,
+      rating: Number(rating),
+      description,
+      images: Array.isArray(images) ? images : [],
+      status: reviewStatus,
+      isVerifiedPurchase: false,
+      ...(createdAt ? { createdAt: new Date(createdAt) } : {}),
+    });
+
+    const savedReview = await newReview.save();
+    await savedReview.populate("userId", "username email");
+    await savedReview.populate("productId", "productName");
+
+    // If approved, update product's average rating and total review count
+    if (reviewStatus === "approved") {
+      const approvedReviews = await Review.find({
+        productId,
+        status: "approved",
+      });
+      const totalReviews = approvedReviews.length;
+      const averageRating =
+        totalReviews > 0
+          ? approvedReviews.reduce((sum, r) => sum + r.rating, 0) / totalReviews
+          : 0;
+
+      await products.findByIdAndUpdate(productId, {
+        rating: averageRating.toFixed(1),
+        reveiws: totalReviews,
+      });
+
+      if (req.tenantConfig?.tenantId) {
+        await safeDel(
+          getTenantRedisKey(req.tenantConfig.tenantId, `product::${productId}`)
+        );
+      }
+    }
+
+    res.status(201).json({
+      message: "Manual review created successfully",
+      review: savedReview,
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: "This user has already reviewed this product.",
+      });
+    }
+
+    res.status(500).json({
+      message: "Error creating manual review",
+      error: error.message,
+    });
+  }
+};
+
