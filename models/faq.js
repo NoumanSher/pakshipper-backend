@@ -12,6 +12,11 @@ const faqSchema = new mongoose.Schema(
       required: [true, "Answer is required"],
       trim: true,
     },
+    category: {
+      type: String,
+      trim: true,
+      default: "",
+    },
     order: {
       type: Number,
       default: 0,

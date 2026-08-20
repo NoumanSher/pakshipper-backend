@@ -138,109 +138,61 @@ class TenantService {
 
   /**
    * Seed default system roles into the tenant database.
+   *
+   * Only TWO roles are seeded at tenant creation time:
+   *   1. owner  — Merchant RBAC system role. Full access. Assigned to the store owner.
+   *   2. user   — Storefront identity role. Assigned to registered storefront customers.
+   *              Never shown in merchant panel. Protected from merchant modification.
+   *
+   * All other merchant team roles (manager, editor, support, etc.) are created
+   * by the merchant owner as needed through the Roles & Permissions page.
+   *
+   * Idempotent: uses findOneAndUpdate with $set + upsert so retries are safe.
    */
   static async seedDefaultRoles(connection) {
     const Role = connection.model("Role");
 
-    const defaultRoles = [
+    const systemRoles = [
       {
         name: "owner",
         displayName: "Owner",
-        description: "Full control of the store, including billing and user roles.",
-        level: 100,
-        isSystem: true,
-        permissions: [
-          { resource: "products", actions: ["read", "write", "delete", "approve"] },
-          { resource: "orders", actions: ["read", "write", "delete"] },
-          { resource: "categories", actions: ["read", "write", "delete"] },
-          { resource: "customers", actions: ["read", "write", "delete"] },
-          { resource: "settings", actions: ["read", "write"] },
-          { resource: "roles", actions: ["read", "write"] },
-          { resource: "reviews", actions: ["read", "write", "delete"] },
-          { resource: "notifications", actions: ["read", "write"] },
-          { resource: "store_config", actions: ["read", "write"] },
-          { resource: "analytics", actions: ["read"] }
-        ]
-      },
-      {
-        name: "store_admin",
-        displayName: "Admin",
-        description: "Administrative access to store operations and team users.",
+        description: "Full access to all merchant resources.",
         level: 90,
         isSystem: true,
         permissions: [
-          { resource: "products", actions: ["read", "write", "delete", "approve"] },
-          { resource: "orders", actions: ["read", "write", "delete"] },
-          { resource: "categories", actions: ["read", "write", "delete"] },
-          { resource: "customers", actions: ["read", "write", "delete"] },
-          { resource: "settings", actions: ["read", "write"] },
-          { resource: "roles", actions: ["read", "write"] },
-          { resource: "reviews", actions: ["read", "write", "delete"] },
+          { resource: "dashboard",     actions: ["read"] },
+          { resource: "products",      actions: ["read", "write", "delete", "approve"] },
+          { resource: "orders",        actions: ["read", "write", "delete"] },
+          { resource: "categories",    actions: ["read", "write", "delete"] },
+          { resource: "customers",     actions: ["read", "write", "delete"] },
+          { resource: "settings",      actions: ["read", "write"] },
+          { resource: "roles",         actions: ["read", "write"] },
+          { resource: "reviews",       actions: ["read", "write", "delete", "approve"] },
           { resource: "notifications", actions: ["read", "write"] },
-          { resource: "store_config", actions: ["read"] },
-          { resource: "analytics", actions: ["read"] }
-        ]
+          { resource: "store_config",  actions: ["read", "write"] },
+          { resource: "analytics",     actions: ["read"] },
+        ],
       },
       {
-        name: "manager",
-        displayName: "Manager",
-        description: "Manages catalog, orders, and customer queries.",
-        level: 70,
-        isSystem: false,
-        permissions: [
-          { resource: "products", actions: ["read", "write", "approve"] },
-          { resource: "orders", actions: ["read", "write"] },
-          { resource: "categories", actions: ["read", "write"] },
-          { resource: "customers", actions: ["read", "write"] },
-          { resource: "reviews", actions: ["read", "write"] },
-          { resource: "notifications", actions: ["read"] },
-          { resource: "analytics", actions: ["read"] }
-        ]
-      },
-      {
-        name: "editor",
-        displayName: "Editor",
-        description: "Manages products and categories catalog.",
-        level: 50,
-        isSystem: false,
-        permissions: [
-          { resource: "products", actions: ["read", "write"] },
-          { resource: "categories", actions: ["read", "write"] }
-        ]
-      },
-      {
-        name: "support",
-        displayName: "Support Agent",
-        description: "Manages orders processing and customer communications.",
-        level: 30,
-        isSystem: false,
-        permissions: [
-          { resource: "products", actions: ["read"] },
-          { resource: "orders", actions: ["read", "write"] },
-          { resource: "customers", actions: ["read"] },
-          { resource: "reviews", actions: ["read"] }
-        ]
-      },
-      {
-        name: "customer",
-        displayName: "Customer",
-        description: "End consumer storefront customer.",
-        level: 10,
+        name: "user",
+        displayName: "User",
+        description: "Default role for storefront registered users. Not a merchant team role.",
+        level: 5,
         isSystem: true,
         permissions: [
-          { resource: "products", actions: ["read"] },
-          { resource: "categories", actions: ["read"] }
-        ]
-      }
+          { resource: "products",   actions: ["read"] },
+          { resource: "categories", actions: ["read"] },
+        ],
+      },
     ];
 
     const rolesMap = {};
 
-    for (const roleData of defaultRoles) {
-      // Use findOneAndUpdate to seed safely without duplicates
+    for (const roleData of systemRoles) {
+      // Idempotent upsert — safe to retry provisioning without creating duplicates
       const roleObj = await Role.findOneAndUpdate(
         { name: roleData.name },
-        roleData,
+        { $set: roleData },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       );
       rolesMap[roleData.name] = roleObj._id;

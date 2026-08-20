@@ -48,15 +48,19 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, "Password Required"],
       minlength: [6, "Password must be at least 6 characters long"],
+      select: false,
     },
     confirmPassword: {
       type: String,
+      select: false,
     },
     resetToken: {
       type: String,
+      select: false,
     },
     refreshToken: {
       type: String,
+      select: false,
     },
     firstOrderDiscountUsed: {
       type: Boolean,

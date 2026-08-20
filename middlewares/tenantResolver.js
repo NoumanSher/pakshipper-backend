@@ -73,8 +73,8 @@ const getDecryptedConfig = (config) => {
 };
 
 export const tenantResolver = async (req, res, next) => {
-  // Allow platform routes to bypass tenant resolution
-  if (req.path.startsWith('/api/platform')) {
+  // Allow platform routes and public lookup routes to bypass tenant resolution
+  if (req.path.startsWith('/api/platform') || req.path.startsWith('/api/public')) {
     return next();
   }
 

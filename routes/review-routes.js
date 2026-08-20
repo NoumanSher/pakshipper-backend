@@ -1,6 +1,7 @@
 import express from "express";
 import {
   adminAllReview,
+  adminManualCreateReview,
   createReview,
   deleteReveiw,
   productReview,
@@ -17,9 +18,21 @@ const router = express.Router();
 /**
  * @route POST /api/reviews/
  * @desc Create a new review
- * @access Public or Authenticated users (based on your auth implementation)
+ * @access Authenticated user
  */
-router.post("/", createReview);
+router.post("/", authMiddleware, createReview);
+
+/**
+ * @route POST /api/reviews/admin/manual-create
+ * @desc Create a manual review seeded by admin (attributed to a user, with optional date)
+ * @access Admin
+ */
+router.post(
+  "/admin/manual-create",
+  authMiddleware,
+  checkPermission("reviews", "write"),
+  adminManualCreateReview
+);
 
 /**
  * @route GET /api/reviews/product/:productId
@@ -69,21 +82,21 @@ router.delete(
  * @desc Edit an existing review (User can edit their own review)
  * @access Authenticated user
  */
-router.put("/:reviewId", userReviewEdit);
+router.put("/:reviewId", authMiddleware, userReviewEdit);
 
 /**
  * @route DELETE /api/reviews/:reviewId
  * @desc Delete a review
- * @access Authenticated user (or Admin, depending on your logic)
+ * @access Authenticated user (or Admin)
  */
-router.delete("/:reviewId", deleteReveiw);
+router.delete("/:reviewId", authMiddleware, deleteReveiw);
 
 /**
  * @route GET /api/reviews/user/:userId
  * @desc Get all reviews by a specific user
  * @access Authenticated user
  */
-router.get("/user/:userId", userAllReveiw);
+router.get("/user/:userId", authMiddleware, userAllReveiw);
 
 router.post("/review/helpful", authMiddleware, toggleHelpfulReview);
 

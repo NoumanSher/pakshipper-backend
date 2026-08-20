@@ -21,8 +21,8 @@ class AuthService {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Get default role
-    const userRole = await Role.findOne({ name: "customer" }); // Updated default to 'customer'
+    // Get default storefront role assigned to all newly registered users
+    const userRole = await Role.findOne({ name: "user" });
     if (!userRole) throw new AppError("Default user role not found. Please run seed script.", 500);
 
     // Create and save user
@@ -56,7 +56,7 @@ class AuthService {
    */
   static async login(models, email, password, merchantPanelMode = false) {
     const { User } = models;
-    const user = await User.findOne({ email }).populate("role");
+    const user = await User.findOne({ email }).select("+password").populate("role");
     if (!user) throw new AppError("Invalid email or password", 400);
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -89,7 +89,7 @@ class AuthService {
     const { User } = models;
     try {
       const decoded = jwt.verify(oldRefreshToken, process.env.REFRESH_TOKEN_SECRET || "refresh_secret_hey");
-      const user = await User.findById(decoded.id).populate("role");
+      const user = await User.findById(decoded.id).select("+refreshToken").populate("role");
 
       if (!user || user.refreshToken !== oldRefreshToken) {
         throw new AppError("Invalid refresh token", 401);
@@ -138,7 +138,7 @@ class AuthService {
     const { User } = models;
     try {
       const decoded = jwt.verify(token, process.env.SECRET_KEY);
-      const user = await User.findById(decoded.userId);
+      const user = await User.findById(decoded.userId).select("+resetToken");
 
       if (!user || user.resetToken !== token || Date.now() > user.resetTokenExpiration) {
         throw new AppError("Invalid or expired token", 400);
@@ -175,7 +175,7 @@ class AuthService {
       {
         id: user._id,
         email: user.email,
-        role: role?.name || "customer",
+        role: role?.name || "user",
         roleLevel: role?.level || 0,
       },
       process.env.SECRET_KEY,

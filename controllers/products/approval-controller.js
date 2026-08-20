@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { getTenantRedisKey, flushTenantCache, safeGet, safeSetEx } from "../../config/redis/redisHelpers.js";
 
 /**
@@ -209,16 +210,6 @@ export const getPendingProducts = async (req, res) => {
         const limitNumber = parseInt(limit, 10) || 20;
         const skip = (pageNumber - 1) * limitNumber;
 
-        const rawKey = `products::pending::${pageNumber}::${limitNumber}`;
-        const cacheKey = getTenantRedisKey(req.tenantConfig.tenantId, rawKey);
-
-        // Check cache
-        const cached = await safeGet(cacheKey);
-        if (cached) {
-            console.log("✅ Cache hit (pending products)");
-            return res.status(200).json(JSON.parse(cached));
-        }
-
         const [products, totalProducts] = await Promise.all([
             Product.find({ approvalStatus: 'pending' })
                 .select('productName salePrice stock images seo createdBy createdAt approvalStatus')
@@ -245,7 +236,6 @@ export const getPendingProducts = async (req, res) => {
             }
         };
 
-        await safeSetEx(cacheKey, 60, JSON.stringify(response)); // Cache for 1 minute
         res.status(200).json(response);
     } catch (error) {
         console.error("Error fetching pending products:", error);

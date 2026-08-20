@@ -5,6 +5,7 @@ import { z } from "zod";
 const faqSchema = z.object({
   question: z.string().min(1, "Question is required").optional(),
   answer: z.string().min(1, "Answer is required").optional(),
+  category: z.string().optional(),
   order: z.number().optional(),
   isActive: z.boolean().optional(),
 });

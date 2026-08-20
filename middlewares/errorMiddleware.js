@@ -6,14 +6,33 @@ const handleCastErrorDB = (err) => {
 };
 
 const handleDuplicateFieldsDB = (err) => {
-  const value = err.errmsg.match(/(["'])(\\?.)*?\1/)[0];
-  const message = `Duplicate field value: ${value}. Please use another value!`;
+  let field = "field";
+  let value = "";
+  if (err.keyValue) {
+    const keys = Object.keys(err.keyValue);
+    field = keys.join(", ");
+    value = Object.values(err.keyValue).join(", ");
+  } else if (err.errmsg) {
+    const match = err.errmsg.match(/(["'])(\\?.)*?\1/);
+    value = match ? match[0] : "";
+  } else if (err.message) {
+    const match = err.message.match(/(["'])(\\?.)*?\1/);
+    value = match ? match[0] : "";
+  }
+
+  if (field.includes("slug")) {
+    return new AppError(`The URL slug '${value || "entered"}' is already in use by another product. Please customize the URL slug in the SEO section.`, 400);
+  }
+  if (field.includes("sku")) {
+    return new AppError(`The SKU '${value || "entered"}' is already in use by another product. Please use a unique SKU.`, 400);
+  }
+  const message = `Duplicate ${field}: ${value}. Please use a unique value!`;
   return new AppError(message, 400);
 };
 
 const handleValidationErrorDB = (err) => {
-  const errors = Object.values(err.errors).map((el) => el.message);
-  const message = `Invalid input data. ${errors.join('. ')}`;
+  const errors = Object.values(err.errors || {}).map((el) => el.message || el);
+  const message = `Invalid input data: ${errors.join('. ')}`;
   return new AppError(message, 400);
 };
 
@@ -24,8 +43,8 @@ const handleZodError = (err) => {
 };
 
 const sendErrorDev = (err, res) => {
-  res.status(err.statusCode).json({
-    status: err.status,
+  res.status(err.statusCode || 500).json({
+    status: err.status || 'error',
     error: err,
     message: err.message,
     stack: err.stack,
@@ -44,7 +63,7 @@ const sendErrorProd = (err, res) => {
     console.error('ERROR 💥', err);
     res.status(500).json({
       status: 'error',
-      message: 'Something went very wrong!',
+      message: err.message || 'Something went wrong on the server!',
     });
   }
 };
@@ -53,18 +72,19 @@ export const globalErrorHandler = (err, req, res, next) => {
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
 
+  let error = { ...err };
+  error.message = err.message;
+  error.name = err.name;
+  error.code = err.code;
+
+  if (error.name === 'CastError' || err.name === 'CastError') error = handleCastErrorDB(err);
+  if (error.code === 11000 || err.code === 11000) error = handleDuplicateFieldsDB(err);
+  if (error.name === 'ValidationError' || err.name === 'ValidationError') error = handleValidationErrorDB(err);
+  if (error.name === 'ZodError' || err.name === 'ZodError') error = handleZodError(err);
+
   if (process.env.NODE_ENV === 'development') {
-    sendErrorDev(err, res);
+    sendErrorDev(error.isOperational ? error : err, res);
   } else {
-    let error = { ...err };
-    error.message = err.message;
-    error.name = err.name;
-
-    if (error.name === 'CastError') error = handleCastErrorDB(error);
-    if (error.code === 11000) error = handleDuplicateFieldsDB(error);
-    if (error.name === 'ValidationError') error = handleValidationErrorDB(error);
-    if (err.name === 'ZodError') error = handleZodError(err);
-
     sendErrorProd(error, res);
   }
 };

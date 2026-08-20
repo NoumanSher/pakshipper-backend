@@ -34,6 +34,9 @@ class CategoryService {
     const { ChildCategories } = models;
     const { name, slug, description, parentCategory, image, sortOrder, isActive } = data;
 
+    const existingCategory = await ChildCategories.findOne({ slug });
+    if (existingCategory) throw new AppError("Slug already exists", 400);
+
     const childCategory = new ChildCategories({
       name,
       slug,
