@@ -1,4 +1,4 @@
-import { getTenantRedisKey, flushTenantCache, safeGet, safeSetEx } from "../config/redis/redisHelpers.js";
+import { getTenantRedisKey, flushTenantCache, safeGet, safeSetEx, safeDel } from "../config/redis/redisHelpers.js";
 import mongoose from "mongoose";
 import AppError from "../utils/AppError.js";
 import cloudinary from "../utils/cloudinary.js";
@@ -52,22 +52,46 @@ class ProductService {
       throw new AppError("Invalid Product ID", 400);
     }
 
-    const baseKey = isAdminRequest ? `product:admin:${id}` : `product::${id}`;
+    // Admin reads are always fresh — this is the merchant editing their own
+    // product, staleness here is a correctness bug, not a performance win.
+    if (isAdminRequest) {
+      const product = await Product.findById(id)
+        .populate("parentCategoryID", "name slug")
+        .populate("childCategoryID", "name slug");
+
+      if (!product) {
+        throw new AppError("Product Not Found", 404);
+      }
+
+      const transformedProduct = {
+        ...product.toObject(),
+        parentCategoryName: product.parentCategoryID?.name || null,
+        parentCategorySlug: product.parentCategoryID?.slug || null,
+        parentCategoryID: product.parentCategoryID?._id || null,
+        childCategoryID: product.childCategoryID?._id || null,
+        childCategoryName: product.childCategoryID?.name || null,
+        childCategorySlug: product.childCategoryID?.slug || null,
+      };
+
+      return {
+        message: "Product Found Successfully",
+        data: transformedProduct,
+      };
+    }
+
+    // Public/storefront path keeps caching — this is the case where it
+    // actually pays for itself under real traffic.
+    const baseKey = `product::${id}`;
     const cacheKey = getTenantRedisKey(tenantConfig.tenantId, baseKey);
 
     const cached = await safeGet(cacheKey);
     if (cached) {
-      console.log(`✅ Cache hit (${isAdminRequest ? 'Admin' : 'Public'})`);
+      console.log(`✅ Cache hit (Public)`);
       return JSON.parse(cached);
     }
 
-    let query = Product.findById(id);
-
-    if (!isAdminRequest) {
-      query = query.select("-costPrice");
-    }
-
-    const product = await query
+    const product = await Product.findById(id)
+      .select("-costPrice")
       .populate("parentCategoryID", "name slug")
       .populate("childCategoryID", "name slug");
 
@@ -470,6 +494,17 @@ class ProductService {
 
     if (!updatedProduct) {
       throw new AppError("Product Not Found", 404);
+    }
+
+    // Targeted delete first (immediate, specific to what changed) —
+    // then the broader tenant flush for everything else (lists, etc.)
+    await safeDel(getTenantRedisKey(tenantConfig.tenantId, `product::${id}`));
+    await safeDel(getTenantRedisKey(tenantConfig.tenantId, `product:admin:${id}`));
+    if (updatedProduct.seo?.slug) {
+      await safeDel(getTenantRedisKey(tenantConfig.tenantId, `product:slug:${updatedProduct.seo.slug}`));
+    }
+    if (currentProduct.seo?.slug && currentProduct.seo.slug !== updatedProduct.seo?.slug) {
+      await safeDel(getTenantRedisKey(tenantConfig.tenantId, `product:slug:${currentProduct.seo.slug}`));
     }
     await flushTenantCache(tenantConfig.tenantId);
 
